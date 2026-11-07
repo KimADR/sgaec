@@ -1,0 +1,327 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Sex {
+  MALE
+  FEMALE
+}
+
+enum WorkflowStatus {
+  REGISTERED
+  IN_REVIEW
+  VALIDATED
+  ISSUED
+  REJECTED
+}
+
+enum DeclarationStatus {
+  DRAFT
+  SUBMITTED
+  IN_REVIEW
+  VALIDATED
+  REJECTED
+}
+
+enum RegisterType {
+  BIRTH
+  MARRIAGE
+  DEATH
+}
+
+model Commune {
+  id            String             @id @default(uuid())
+  code          String             @unique
+  name          String
+  active        Boolean            @default(true)
+  createdAt     DateTime           @default(now())
+  arrondissements Arrondissement[]
+  centres       CentreEtatCivil[]
+  registers     Registre[]
+  citizens      Citizen[]
+  declarations  BirthDeclaration[]
+  births        BirthRecord[]
+  cinCases      CinApplication[]
+  auditEvents   AuditEvent[]
+  deliveries    DocumentDelivery[]
+  workflowEvents WorkflowEvent[]
+  assignments   Affectation[]
+}
+
+model Arrondissement {
+  id        String           @id @default(uuid())
+  communeId String
+  code      String
+  name      String
+  commune   Commune          @relation(fields: [communeId], references: [id], onDelete: Restrict)
+  centres   CentreEtatCivil[]
+
+  @@unique([communeId, code])
+  @@unique([id, communeId])
+}
+
+model CentreEtatCivil {
+  id              String             @id @default(uuid())
+  communeId       String
+  arrondissementId String?
+  code            String
+  name            String
+  address         String?
+  active          Boolean            @default(true)
+  commune         Commune            @relation(fields: [communeId], references: [id], onDelete: Restrict)
+  arrondissement  Arrondissement?    @relation(fields: [arrondissementId, communeId], references: [id, communeId], onDelete: Restrict)
+  registers       Registre[]
+  citizens        Citizen[]
+  declarations    BirthDeclaration[]
+  births          BirthRecord[]
+  cinCases        CinApplication[]
+  deliveries      DocumentDelivery[]
+  assignments     Affectation[]
+
+  @@unique([communeId, code])
+  @@unique([id, communeId])
+}
+
+model Utilisateur {
+  id           String        @id @default(uuid())
+  username     String        @unique
+  fullName     String
+  passwordHash String
+  active       Boolean       @default(true)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  assignments  Affectation[]
+  auditEvents  AuditEvent[]  @relation("AuditActor")
+  declarations BirthDeclaration[] @relation("DeclarationCreator")
+  deliveries   DocumentDelivery[] @relation("DocumentDeliverer")
+  workflowEvents WorkflowEvent[] @relation("WorkflowActor")
+}
+
+model Role {
+  id          String           @id @default(uuid())
+  code        String           @unique
+  name        String
+  permissions RolePermission[]
+  assignments Affectation[]
+}
+
+model Permission {
+  id          String           @id @default(uuid())
+  code        String           @unique
+  description String
+  roles       RolePermission[]
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+}
+
+model Affectation {
+  id              String          @id @default(uuid())
+  utilisateurId   String
+  roleId          String
+  communeId       String
+  centreEtatCivilId String?
+  active          Boolean         @default(true)
+  createdAt       DateTime        @default(now())
+  utilisateur     Utilisateur     @relation(fields: [utilisateurId], references: [id], onDelete: Restrict)
+  role            Role            @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  commune         Commune         @relation(fields: [communeId], references: [id], onDelete: Restrict)
+  centre          CentreEtatCivil? @relation(fields: [centreEtatCivilId, communeId], references: [id, communeId], onDelete: Restrict)
+
+  @@unique([utilisateurId, roleId, communeId, centreEtatCivilId])
+  @@index([utilisateurId, communeId, active])
+}
+
+model Registre {
+  id               String             @id @default(uuid())
+  communeId        String
+  centreEtatCivilId String
+  code             String
+  type             RegisterType
+  year             Int
+  openedAt         DateTime           @default(now())
+  closedAt         DateTime?
+  commune          Commune            @relation(fields: [communeId], references: [id], onDelete: Restrict)
+  centre           CentreEtatCivil    @relation(fields: [centreEtatCivilId, communeId], references: [id, communeId], onDelete: Restrict)
+  declarations     BirthDeclaration[]
+  births           BirthRecord[]
+
+  @@unique([communeId, code])
+  @@unique([id, communeId])
+  @@index([communeId, centreEtatCivilId, type, year])
+}
+
+model Citizen {
+  id                String             @id @default(uuid())
+  communeId         String
+  centreEtatCivilId String
+  lastName          String
+  firstNames        String
+  sex               Sex
+  birthDate         DateTime           @db.Date
+  nationality       String             @default("Malagasy")
+  birthPlace        String
+  active            Boolean            @default(true)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  commune           Commune            @relation(fields: [communeId], references: [id], onDelete: Restrict)
+  centre            CentreEtatCivil    @relation(fields: [centreEtatCivilId, communeId], references: [id, communeId], onDelete: Restrict)
+  declarations      BirthDeclaration[]
+  birthRecords      BirthRecord[]
+
+  @@unique([id, communeId])
+  @@index([communeId, lastName, firstNames])
+  @@index([communeId, active, lastName, firstNames])
+}
+
+model BirthDeclaration {
+  id                String            @id @default(uuid())
+  communeId         String
+  centreEtatCivilId String
+  registreId        String
+  citoyenId         String
+  status            DeclarationStatus @default(DRAFT)
+  declarantName     String?
+  submittedAt       DateTime?
+  validatedAt       DateTime?
+  rejectedAt        DateTime?
+  rejectionReason   String?
+  createdById       String?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  commune           Commune           @relation(fields: [communeId], references: [id], onDelete: Restrict)
+  centre            CentreEtatCivil   @relation(fields: [centreEtatCivilId, communeId], references: [id, communeId], onDelete: Restrict)
+  registre          Registre          @relation(fields: [registreId, communeId], references: [id, communeId], onDelete: Restrict)
+  citoyen           Citizen           @relation(fields: [citoyenId, communeId], references: [id, communeId], onDelete: Restrict)
+  createdBy         Utilisateur?      @relation("DeclarationCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  acte              BirthRecord?
+  events            WorkflowEvent[]
+
+  @@unique([id, communeId])
+  @@index([communeId, centreEtatCivilId, status, createdAt])
+}
+
+model BirthRecord {
+  id                String         @id @default(uuid())
+  recordNumber      String         @unique
+  communeId         String
+  centreEtatCivilId String
+  registreId        String
+  citoyenId         String
+  declarationId     String?        @unique
+  lastName          String
+  firstNames        String
+  sex               Sex
+  birthDate         DateTime       @db.Date
+  nationality       String         @default("Malagasy")
+  district          String
+  municipality      String
+  placeOfBirth      String
+  fatherName        String?
+  motherName        String?
+  address           String?
+  declarantName     String?
+  officeCode        String         @default("DEMO")
+  status            WorkflowStatus @default(REGISTERED)
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  commune           Commune        @relation(fields: [communeId], references: [id], onDelete: Restrict)
+  centre            CentreEtatCivil @relation(fields: [centreEtatCivilId, communeId], references: [id, communeId], onDelete: Restrict)
+  registre          Registre        @relation(fields: [registreId, communeId], references: [id, communeId], onDelete: Restrict)
+  citoyen           Citizen        @relation(fields: [citoyenId, communeId], references: [id, communeId], onDelete: Restrict)
+  declaration       BirthDeclaration? @relation(fields: [declarationId, communeId], references: [id, communeId], onDelete: Restrict)
+  deliveries        DocumentDelivery[]
+
+  @@unique([id, communeId])
+  @@unique([declarationId, communeId])
+  @@index([communeId, lastName, firstNames])
+  @@index([communeId, centreEtatCivilId, createdAt])
+}
+
+model CinApplication {
+  id                   String         @id @default(uuid())
+  fileNumber           String         @unique
+  communeId            String
+  centreEtatCivilId    String
+  lastName             String
+  firstNames           String
+  birthDate            DateTime       @db.Date
+  birthPlace           String
+  address              String
+  district             String
+  profession           String?
+  fatherName           String?
+  motherName           String?
+  hasBirthCertificate  Boolean        @default(false)
+  hasResidenceProof    Boolean        @default(false)
+  photosCount          Int            @default(0)
+  officeCode           String         @default("DEMO")
+  status               WorkflowStatus @default(REGISTERED)
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+  commune              Commune        @relation(fields: [communeId], references: [id], onDelete: Restrict)
+  centre               CentreEtatCivil @relation(fields: [centreEtatCivilId, communeId], references: [id, communeId], onDelete: Restrict)
+
+  @@index([communeId, lastName, firstNames])
+  @@index([communeId, centreEtatCivilId, createdAt])
+}
+
+model DocumentDelivery {
+  id                String          @id @default(uuid())
+  communeId         String
+  centreEtatCivilId String
+  birthRecordId     String
+  deliveredById     String
+  documentType      String
+  deliveredAt       DateTime        @default(now())
+  commune           Commune         @relation(fields: [communeId], references: [id], onDelete: Restrict)
+  centre            CentreEtatCivil @relation(fields: [centreEtatCivilId, communeId], references: [id, communeId], onDelete: Restrict)
+  birthRecord       BirthRecord     @relation(fields: [birthRecordId, communeId], references: [id, communeId], onDelete: Restrict)
+  deliveredBy       Utilisateur     @relation("DocumentDeliverer", fields: [deliveredById], references: [id], onDelete: Restrict)
+
+  @@index([communeId, deliveredAt])
+}
+
+model WorkflowEvent {
+  id                String           @id @default(uuid())
+  communeId         String
+  declarationId     String
+  actorId           String
+  action            String
+  fromStatus        DeclarationStatus?
+  toStatus          DeclarationStatus
+  details           Json?
+  createdAt         DateTime         @default(now())
+  commune           Commune          @relation(fields: [communeId], references: [id], onDelete: Restrict)
+  declaration       BirthDeclaration @relation(fields: [declarationId, communeId], references: [id, communeId], onDelete: Restrict)
+  actor             Utilisateur      @relation("WorkflowActor", fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@index([communeId, declarationId, createdAt])
+}
+
+model AuditEvent {
+  id           String   @id @default(uuid())
+  communeId    String
+  actorId      String?
+  actor        String
+  action       String
+  resourceType String
+  resourceId   String
+  details      Json?
+  createdAt    DateTime @default(now())
+  commune      Commune  @relation(fields: [communeId], references: [id], onDelete: Restrict)
+  utilisateur Utilisateur? @relation("AuditActor", fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@index([communeId, resourceType, resourceId])
+  @@index([communeId, createdAt])
+}

@@ -1,0 +1,11 @@
+.env
+.env.*
+!.env.example
+backups/
+node_modules/
+.next/
+__pycache__/
+.pytest_cache/
+*.pyc
+.DS_Store
+apps/data/src/generated/
