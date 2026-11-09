@@ -56,6 +56,8 @@ Le workspace contient `apps/api/app/assets/cin_specimen_demo.jpg`, une illustrat
 
 **Prérequis :** Docker Desktop / Docker Engine avec plugin Docker Compose, connexion Internet pour télécharger les images et dépendances au premier lancement. Le Compose de ce projet réutilise le conteneur PostgreSQL existant `sgaec-v3-postgres-1` sur le réseau externe `sgaec-v3_default` ; il ne crée ni serveur PostgreSQL ni volume.
 
+Pour une démonstration autonome et isolée, sans réutiliser cette base, suivre le [guide de démonstration](GUIDE_DEMONSTRATION.md) et utiliser `compose.demo.yaml`.
+
 À partir du dossier `SGAEC_starter` :
 
 ```bash
