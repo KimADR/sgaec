@@ -2,17 +2,32 @@
 
 Lancer avec : PYTHONPATH=. pytest -q (depuis apps/api).
 """
-from datetime import date
+from datetime import date, datetime, timezone
 from io import BytesIO
 import re
 from zipfile import ZipFile
 
 import pytest
 from pydantic import ValidationError
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.units import mm
 
-from app.models import BirthCreate, CitizenCreate, CinCreate, UserCreate
+from app.models import (
+    BirthCreate,
+    CitizenCreate,
+    CinCreate,
+    CinEvidenceUpdate,
+    CinTransition,
+    UserCreate,
+    _today_in_antananarivo,
+)
 from app.pdf import (
+    FONT_BOLD,
+    FONT_REGULAR,
+    PAGE_MARGIN,
+    _wrapped_lines,
     format_locality,
+    pdfmetrics,
     render_birth_specimen,
     render_cin_specimen,
     render_specimen_archive,
@@ -39,6 +54,12 @@ def test_birth_accepts_valid_values():
 def test_future_birth_date_rejected():
     with pytest.raises(ValidationError):
         BirthCreate(**(BIRTH | {"birth_date": "2099-01-01"}))
+
+
+def test_civil_today_uses_antananarivo_timezone_at_utc_day_boundary():
+    utc_instant = datetime(2026, 11, 7, 23, 30, tzinfo=timezone.utc)
+
+    assert _today_in_antananarivo(utc_instant) == date(2026, 11, 8)
 
 
 def test_citizen_input_validates_identity_and_birth_date():
@@ -69,6 +90,24 @@ def test_cin_photo_range_rejected():
                   photos_count=99)
 
 
+def test_cin_workflow_and_evidence_models_validate_requests():
+    transition = CinTransition(status="REJECTED", reason="Pièces incomplètes")
+    assert transition.status == "REJECTED"
+    assert CinEvidenceUpdate(
+        has_birth_certificate=True,
+        has_residence_proof=True,
+        photos_count=2,
+    ).photos_count == 2
+    with pytest.raises(ValidationError):
+        CinTransition(status="INVALID")
+    with pytest.raises(ValidationError):
+        CinEvidenceUpdate(
+            has_birth_certificate=True,
+            has_residence_proof=True,
+            photos_count=9,
+        )
+
+
 def test_pdf_contains_valid_signature():
     record = BirthCreate(**BIRTH).model_dump(mode="json")
     record["record_number"] = "NAI-DEMO-2026-0001"
@@ -86,7 +125,43 @@ def test_pdf_locality_uses_record_territory():
     assert format_locality(record) == "Arrondissement B fictif, Commune fictive B"
 
 
-def test_cin_pdf_is_a_nonofficial_dossier_sheet():
+def test_pdf_wrapping_preserves_a_long_name_with_diacritics():
+    name = "É" * 120
+
+    lines = _wrapped_lines(name, 100, FONT_BOLD, 10)
+
+    assert len(lines) > 1
+    assert "".join(lines) == name
+    assert all(pdfmetrics.stringWidth(line, FONT_BOLD, 10) <= 100 for line in lines)
+
+
+def test_pdf_wraps_maximum_length_locality_within_header_width():
+    district = "Arrondissement fictif " * 6
+    municipality = "Commune fictive " * 6
+    locality = format_locality({
+        "district": district[:140],
+        "municipality": municipality[:140],
+    })
+    available_width = A4[0] - 2 * PAGE_MARGIN - 8 * mm
+
+    lines = _wrapped_lines(locality, available_width, FONT_REGULAR, 8)
+
+    assert len(lines) > 1
+    assert all(pdfmetrics.stringWidth(line, FONT_REGULAR, 8) <= available_width for line in lines)
+
+
+def test_pdf_paginates_very_long_field_content():
+    record = BirthCreate(**BIRTH).model_dump(mode="json") | {
+        "record_number": "NAI-DEMO-2026-0001",
+        "place_of_birth": "Localité fictive " * 500,
+    }
+
+    pdf = render_birth_specimen(record)
+
+    assert len(re.findall(rb"/Type\s*/Page\b", pdf)) > 1
+
+
+def test_cin_pdf_is_a4_dossier_sheet_and_uses_record_data():
     record = {
         "file_number": "CIN-DEMO-2026-0001",
         "last_name": "RAKOTOMALALA",
@@ -112,8 +187,10 @@ def test_cin_pdf_is_a_nonofficial_dossier_sheet():
     assert len(pdf) > 1000
     media_box = re.search(rb"/MediaBox\s*\[\s*0\s+0\s+([\d.]+)\s+([\d.]+)\s*\]", pdf)
     assert media_box is not None
-    assert float(media_box.group(1)) == pytest.approx(105 * 72 / 25.4, abs=0.01)
-    assert float(media_box.group(2)) == pytest.approx(74 * 72 / 25.4, abs=0.01)
+    assert float(media_box.group(1)) == pytest.approx(595.2756, abs=0.01)
+    assert float(media_box.group(2)) == pytest.approx(841.8898, abs=0.01)
+    changed_record = record | {"last_name": "NOM DE DÉMONSTRATION MODIFIÉ"}
+    assert render_cin_specimen(changed_record) != pdf
 
 
 def test_specimen_archive_contains_one_pdf_per_record_type():

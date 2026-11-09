@@ -1,4 +1,11 @@
 export type WorkflowStatus = 'REGISTERED' | 'IN_REVIEW' | 'VALIDATED' | 'ISSUED' | 'REJECTED';
+export type PageResult<T> = {
+  items: T[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+};
 
 export type BirthRecord = {
   id: string; record_number: string; last_name: string; first_names: string;
@@ -37,7 +44,7 @@ export type CinCase = {
   birth_date: string; birth_place: string; address: string; district: string;
   profession: string; father_name: string; mother_name: string;
   has_birth_certificate: boolean; has_residence_proof: boolean;
-  photos_count: number; status: WorkflowStatus; created_at: string;
+  photos_count: number; status: WorkflowStatus; created_at: string; updated_at?: string;
 };
 
 export type RecentRequest = {
@@ -55,6 +62,20 @@ export type DashboardData = {
   pending: number;
   delivered: number;
   recent: RecentRequest[];
+};
+
+export type ReportsData = {
+  start_date: string;
+  end_date: string;
+  generated_at: string;
+  total: number;
+  by_type: Array<{ type: 'Naissance' | 'CIN'; total: number }>;
+  by_status: Array<{
+    status: WorkflowStatus;
+    births: number;
+    cin: number;
+    total: number;
+  }>;
 };
 
 export type BirthCreate = {

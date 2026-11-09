@@ -1,0 +1,507 @@
+# Audit du projet SGAEC — Refonte UI/UX Premium et génération PDF
+
+J’ai examiné la structure de ton application SGAEC (Système de Gestion Administrative et d’État Civil), développée avec Next.js, React, FastAPI, Prisma, PostgreSQL et Docker.
+
+Mon premier diagnostic : le projet dispose déjà d'une base technique intéressante, mais son interface peut évoluer considérablement pour ressembler à un véritable logiciel professionnel de gestion administrative, plutôt qu'à un prototype organisé autour de tableaux et de formulaires.
+
+Le principal objectif devrait être de transformer SGAEC en une application institutionnelle moderne, élégante, intuitive et adaptée au travail quotidien des agents.
+
+Priorité 1 — Expérience utilisateur et listes
+
+Très élevée
+
+Priorité 2 — Rendu et prévisualisation PDF
+
+Très élevée
+
+Priorité 3 — Design system et composants
+
+Élevée
+
+Priorité 4 — Optimisation des parcours métiers
+
+Élevée
+
+Un point important : ton archive contient déjà un audit et un prompt Copilot, mais ceux-ci se réfèrent à une version antérieure du projet. Plusieurs de leurs constats sont désormais dépassés : la version transmise possède notamment une authentification, un répertoire de citoyens, une pagination et des contrôles multi-communes. Il ne faut donc pas demander à Copilot de suivre cet ancien audit sans le corriger.
+
+## 1. Les points faibles identifiés dans le code
+
+| Domaine          | Constat                                                                                                   | Amélioration recommandée                                         |
+| ---------------- | --------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| Listes           | Tableaux classiques dans Citoyens, Naissances, CIN, Demandes et Administration                            | Cards premium réutilisables, avec avatar, statut et actions      |
+| Design system    | `globals.css` contient 746 lignes, avec des styles redéfinis plusieurs fois                               | Organiser les tokens et styles par composants                    |
+| PDF              | En-têtes susceptibles de déborder, filigranes très imposants                                              | Nouveau moteur de mise en page, pagination et contrôle visuel    |
+| Prévisualisation | Aperçus HTML et PDF développés séparément                                                                 | Afficher le PDF réel dans une visionneuse intégrée               |
+| Formulaires      | Saisie des naissances guidée, mais présentation et validation différentes des formulaires CIN et Citoyens | Uniformiser les formulaires, les étapes et les erreurs           |
+| Tableau de bord  | KPI existants et liste des demandes récentes encore présentée en tableau                                  | Dashboard de pilotage et cartes de demandes compactes            |
+| Navigation       | Changement de commune avec rechargement complet de la page                                                | Transition plus fluide et indication explicite du contexte actif |
+| Exports          | Export ZIP généré entièrement en mémoire                                                                  | Prévoir les volumes importants et des exports mieux contrôlés    |
+
+La bonne nouvelle est que les API, la pagination serveur et les modèles de données existants permettent de commencer cette refonte sans reconstruire le backend.
+
+## 2. Le design cible : SGAEC Institutional Premium
+
+Je recommande un style combinant la sobriété d'un logiciel institutionnel et la finition d'un SaaS moderne.
+
+Bleu nuitBleu actionOr discretFond clair
+
+La présentation doit privilégier des cartes blanches, des bordures discrètes, des ombres légères, des espacements réguliers et une hiérarchie typographique nette. L'objectif n'est pas d'ajouter des couleurs et des effets partout, mais de rendre chaque information immédiatement compréhensible.
+
+### Exemple de card citoyen
+
+AS
+
+RAKOTO Aina Soa
+
+Citoyen · Fiche de démonstration
+
+Actif
+
+Naissance
+
+09 juillet 2004
+
+Lieu
+
+Antananarivo
+
+Centre
+
+Centre de démonstration
+
+Actes liés
+
+2 documents
+
+Exemple visuel fictif
+
+Consulter la fiche
+
+Je recommande une grille de 3 cards sur grand écran, 2 sur tablette et 1 sur mobile, avec des variantes adaptées aux citoyens, aux actes et aux dossiers CIN. Les avatars utiliseront les initiales tant qu'aucune vraie photographie autorisée n'est disponible.
+
+Les tableaux statistiques de la page Rapports peuvent rester des tableaux lorsqu'ils sont réellement utiles à la comparaison de chiffres. Ce sont surtout les listes d'enregistrements qui doivent être remplacées.
+
+## 3. Le PDF mérite une refonte spécifique
+
+J'ai exécuté les tests Python du projet : 18 tests réussis. J'ai également généré et rendu des PDF directement avec `apps/api/app/pdf.py`.
+
+Les résultats montrent que le moteur fonctionne, mais qu'il manque encore de robustesse et de finition graphique.
+
+PDF CIN actuel
+
+Le filigrane traverse fortement les informations et le pied de page est très proche de la bordure inférieure.
+
+Consulter le PDF de démonstration
+
+PDF naissance avec localité longue
+
+Un intitulé de commune et d'arrondissement respectant les limites de validation déborde horizontalement dans l'en-tête.
+
+Consulter le PDF de test
+
+PDF avec données volontairement extrêmes
+
+La génération sur plusieurs pages fonctionne, mais la répartition des contenus et les pieds de page nécessitent un traitement plus rigoureux.
+
+Consulter le test de pagination
+
+L'amélioration que je privilégie est de conserver ReportLab côté FastAPI, en structurant davantage la mise en page, puis de prévisualiser dans l'interface le PDF réellement généré par le serveur. Cela évitera les différences entre les composants `BirthCertificate.tsx`, `CinPreview.tsx` et le document téléchargé.
+
+Autre incohérence à corriger : le fichier d'exemple CIN stocké dans `docs/` est un ancien visuel de petit format, alors que le générateur actuel produit une fiche de suivi A4. Ces références doivent être synchronisées.
+
+## 4. Prompt professionnel à transmettre à GitHub Copilot
+
+Voici le prompt que je te recommande de coller dans Copilot Agent, à la racine du dossier `SGAEC_starter`.
+
+# PROMPT MAÎTRE — REFONTE SGAEC INSTITUTIONAL PREMIUM
+
+## Rôle
+
+Agis comme un **Lead Product Designer, Expert UI/UX Senior, Architecte Frontend Next.js et Ingénieur spécialisé dans la génération de documents PDF professionnels**.
+
+Ta mission est de transformer l'interface existante de SGAEC en un logiciel de gestion administrative haut de gamme, moderne, cohérent, accessible et ergonomique.
+
+Tu dois **modifier directement le code existant**, et non simplement proposer des idées ou des maquettes.
+
+## 1. Contexte technique à respecter
+
+Le projet utilise :
+
+- Next.js 16, React 19, TypeScript et Lucide React pour le frontend.
+- FastAPI et ReportLab pour la génération PDF.
+- Node.js, Express, Prisma et PostgreSQL pour les données.
+- Docker Compose pour l'orchestration.
+
+Commence par inspecter les composants, les routes, les styles, les API et le schéma Prisma existants.
+
+**Contraintes impératives :**
+
+- Ne pas reconstruire inutilement l'application.
+- Ne pas supprimer ou réinitialiser la base PostgreSQL.
+- Ne pas modifier les migrations sans nécessité démontrée et sauvegarde vérifiée.
+- Préserver l'authentification, les rôles, les permissions et l'isolation multi-communes.
+- Conserver les fonctionnalités, routes, recherches, filtres, paginations et exports existants.
+- Ne pas inventer de données ou de fonctionnalités.
+- Utiliser exclusivement des données fictives pour les démonstrations.
+- Garder les PDF non officiels, clairement identifiés comme spécimens.
+- Ne jamais exposer des informations personnelles dans les logs, exemples ou captures.
+
+## 2. Nouveau design system
+
+Nom de la direction artistique : **SGAEC Institutional Premium**.
+
+Créer un design moderne inspiré de la qualité des applications SaaS professionnelles, avec une identité institutionnelle sobre.
+
+Palette :
+
+- Bleu nuit : `#0B203A`
+- Bleu principal : `#1972B6`
+- Or discret : `#B9934F`
+- Fond : `#F5F7FA`
+- Blanc : `#FFFFFF`
+- Bordures : `#E3E9F0`
+- Texte principal : `#182B40`
+- Texte secondaire : `#607387`
+
+Utiliser une typographie sans-serif professionnelle, avec une taille de texte généralement comprise entre 14 et 16 px.
+
+Prévoir des espacements cohérents de 8, 12, 16, 24 et 32 px, des bordures fines, des rayons de 12 à 16 px pour les cartes et des ombres très légères.
+
+Éviter les grands dégradés répétés, les fonds multicolores excessifs, les effets 3D et les animations décoratives inutiles.
+
+Refactoriser `apps/web/app/globals.css`, qui contient actuellement de nombreuses redéfinitions et des styles historiques. Séparer les styles lorsque cela apporte une véritable amélioration de maintenance.
+
+Ne pas imposer une migration Tailwind ou un changement de bibliothèque uniquement pour obtenir un style premium.
+
+## 3. Remplacer les tableaux de listes par des cards premium
+
+C'est une exigence majeure.
+
+Refondre en priorité :
+
+- `apps/web/app/citoyens/page.tsx`
+- `apps/web/app/naissances/page.tsx`
+- `apps/web/app/cin/page.tsx`
+- `apps/web/components/RequestExplorer.tsx`
+- `apps/web/app/administration/page.tsx`
+- La liste des demandes récentes de `apps/web/app/page.tsx`
+- L'historique des actes sur la fiche citoyen.
+
+**Ne plus utiliser de tableaux HTML classiques pour les listes d'enregistrements.**
+
+Créer des composants réutilisables comme :
+
+- `EntityCard`
+- `CitizenCard`
+- `BirthRecordCard`
+- `CinCaseCard`
+- `RequestCard`
+- `AgentCard`
+- `EntityAvatar`
+- `StatusBadge`
+- `CardActionMenu`
+- `CardGrid`
+- `ListToolbar`
+- `EmptyState`
+- `CardSkeleton`
+
+Chaque card doit comporter les informations pertinentes, sans afficher systématiquement tous les champs.
+
+### Card Citoyen
+
+Afficher :
+
+- Avatar rond de 48 à 56 px, avec les initiales.
+- Nom complet clairement mis en valeur.
+- État actif ou archivé, lorsque disponible.
+- Date et lieu de naissance.
+- Centre compétent.
+- Nombre d'actes liés.
+- Action explicite pour consulter la fiche.
+
+Ne pas inventer de photo. Le modèle actuel ne dispose pas de photographie citoyen. Utiliser les initiales ou une icône neutre.
+
+### Card Naissance
+
+Afficher :
+
+- Avatar avec initiales ou pictogramme neutre.
+- Nom de l'enfant.
+- Référence de l'acte.
+- Date et lieu de naissance.
+- Statut réel avec badge.
+- Bouton de consultation.
+- Action PDF uniquement lorsque le compte possède les permissions nécessaires.
+
+### Card CIN
+
+Afficher :
+
+- Avatar du demandeur.
+- Nom complet.
+- Numéro du dossier.
+- Date d'enregistrement.
+- Statut du traitement.
+- Informations succinctes sur les pièces déclarées.
+- Action pour ouvrir le dossier et consulter le spécimen PDF.
+
+Ne pas présenter le dossier comme une carte d'identité officielle.
+
+### Card Demande
+
+Afficher :
+
+- Icône correspondant au type de demande.
+- Référence.
+- Citoyen ou demandeur.
+- Date de création.
+- Statut.
+- Action de consultation.
+
+### Card Agent
+
+Afficher :
+
+- Avatar avec initiales.
+- Nom complet.
+- Identifiant de connexion.
+- Rôle ou rôles.
+- Centre d'affectation.
+
+Ne jamais afficher un mot de passe, même masqué ou fictif.
+
+### Comportement des cards
+
+- 3 colonnes sur grand écran lorsque la largeur le permet.
+- 2 colonnes sur tablette.
+- 1 colonne sur mobile.
+- Hauteur équilibrée, mais jamais au prix d'une troncature importante.
+- Espacements harmonieux entre les éléments.
+- Survol élégant, discret, sans mouvement excessif.
+- Focus visible pour le clavier.
+- États chargement, vide, erreur et absence de résultats.
+- Pagination serveur conservée.
+- Recherche et filtres existants préservés.
+- Actions uniquement si elles existent et sont autorisées.
+- Aucune nouvelle donnée inventée dans les cards.
+
+Les statistiques nécessitant une comparaison tabulaire peuvent conserver un tableau accessible dans la section Rapports.
+
+## 4. Améliorer le tableau de bord
+
+Refondre l'accueil en véritable espace de pilotage.
+
+Conserver les indicateurs existants mais les afficher dans des KPI cards premium, majoritairement blanches, avec icônes discrètes et intitulés précis.
+
+Remplacer le tableau « Demandes récentes » par une liste de cartes horizontales compactes.
+
+Améliorer la visualisation de la répartition des dossiers, en conservant les valeurs réellement fournies par l'API.
+
+Prévoir des états de chargement élégants, des liens directs vers les opérations disponibles et une structure immédiatement lisible.
+
+Ne pas calculer de fausses tendances mensuelles ou de faux pourcentages.
+
+## 5. Améliorer les pages détaillées et les formulaires
+
+Créer une présentation uniforme des fiches Citoyen, Naissance et CIN.
+
+Disposition souhaitée :
+
+- En-tête avec identité ou référence.
+- Statut visible.
+- Actions principales accessibles.
+- Informations regroupées par sections logiques.
+- Historique ou progression uniquement à partir des données réellement disponibles.
+- Zone documentaire avec prévisualisation lorsque pertinente.
+
+Améliorer les formulaires avec :
+
+- Champs plus lisibles.
+- Étapes clairement indiquées.
+- Messages de validation au niveau du champ.
+- Récapitulatif avant enregistrement.
+- Feedback de sauvegarde, chargement et erreur.
+- Prévention des doubles soumissions.
+- Navigation clavier et mise en page mobile.
+
+Conserver les règles Pydantic côté backend comme source de validation autoritative.
+
+Ne pas introduire de faux historique ou de fausses transitions métier.
+
+## 6. Refonte prioritaire de la génération PDF
+
+Examiner spécifiquement :
+
+- `apps/api/app/pdf.py`
+- `apps/api/app/main.py`
+- `apps/web/components/BirthCertificate.tsx`
+- `apps/web/components/CinPreview.tsx`
+- `apps/web/app/naissances/[id]/page.tsx`
+- `apps/web/app/cin/[id]/page.tsx`
+- `apps/api/tests/test_models.py`
+
+Créer deux modèles PDF professionnels distincts :
+
+**A. Extrait d'acte de naissance — spécimen A4**
+
+Le document doit présenter clairement :
+
+- Identité SGAEC de démonstration.
+- Commune et arrondissement issus des données.
+- Titre et référence du document.
+- Informations de naissance.
+- Informations de filiation.
+- Informations complémentaires déclarées.
+- Mention de non-validité officielle.
+- Pied de page, pagination et identification du modèle.
+
+**B. Fiche de suivi de dossier CIN — spécimen A4**
+
+Le document doit présenter :
+
+- Identification du dossier.
+- Demandeur.
+- Informations déclaratives.
+- Pièces mentionnées.
+- Statut enregistré.
+- Commune et centre.
+- Mention explicite qu'il ne constitue pas une pièce d'identité.
+
+### Exigences PDF
+
+1. Conserver la génération côté serveur avec ReportLab, en évaluant ses composants de mise en page structurée (notamment Platypus).
+2. Utiliser des marges A4 cohérentes, autour de 18 à 22 mm.
+3. Utiliser des polices Unicode correctement intégrées.
+4. Gérer les accents français et malagasy.
+5. Gérer les textes longs, les retours à la ligne et les intitulés de commune étendus.
+6. Éviter tout dépassement hors page.
+7. Prévoir une pagination réelle lorsque le contenu le nécessite.
+8. Répéter les en-têtes, pieds de page et mentions de spécimen sur toutes les pages.
+9. Ajouter des numéros de page.
+10. Garantir que le filigrane n'empêche pas la lecture.
+11. Supprimer les chevauchements entre contenu, filigrane, cadres et pied de page.
+12. Ne pas couper les informations pour rendre artificiellement un document plus court.
+13. Préserver les valeurs du dossier sans transformation métier non justifiée.
+14. Ne pas ajouter de sceau, signature, emblème officiel ou code de vérification prétendument officiel.
+
+### Prévisualisation PDF
+
+Le rendu HTML et le PDF téléchargé sont actuellement construits séparément.
+
+Corriger cette incohérence.
+
+L'objectif est d'afficher **le véritable PDF généré côté serveur directement dans l'application**.
+
+Créer si nécessaire un composant `PdfDocumentViewer` permettant :
+
+- Prévisualisation du PDF existant.
+- Affichage dans une zone dédiée.
+- Zoom et navigation dans les pages si le moteur choisi le permet.
+- Téléchargement.
+- Impression du PDF réel.
+- Gestion du chargement et des erreurs.
+- Compatibilité desktop et mobile.
+
+Ne pas utiliser `html2canvas` pour transformer une capture d'écran en PDF.
+
+Ne pas créer un faux aperçu qui serait visuellement différent du PDF final.
+
+### Export groupé
+
+Conserver l'export ZIP existant, ses autorisations et sa traçabilité.
+
+Évaluer son comportement avec un volume important de documents et proposer un mécanisme borné, paginé ou traité par lots, sans charger indéfiniment l'ensemble des données en mémoire.
+
+## 7. Sécurité et conservation des fonctionnalités
+
+La refonte doit être essentiellement visuelle et ergonomique.
+
+Ne jamais casser :
+
+- Les sessions authentifiées.
+- Les contrôles de rôles et permissions.
+- L'isolation multi-communes.
+- Les recherches paginées.
+- Les opérations de création, modification ou archivage existantes.
+- Les statuts du workflow.
+- Les exports sécurisés.
+- Les tests déjà fonctionnels.
+
+Toute nouvelle action UI doit correspondre à une route API existante ou à un développement explicitement identifié et testé.
+
+## 8. Tests et critères d'acceptation
+
+Après chaque phase, exécuter les vérifications possibles :
+
+- TypeScript typecheck.
+- Build Next.js.
+- Tests frontend existants.
+- Tests backend Python.
+- Tests de composants et E2E complémentaires.
+- Contrôle responsive à 1440, 1280, 1024, 768 et 390 px.
+- Vérification des états vides, erreurs et chargements.
+- Navigation au clavier et contrastes.
+- Tests des permissions.
+- Tests de rendu PDF.
+
+Pour le PDF, tester des valeurs réalistes aux longueurs maximales permises : nom, prénoms, lieu, adresse, commune et arrondissement, y compris les caractères accentués.
+
+Générer des PDF de référence, les rendre en images, contrôler visuellement les pages et documenter les défauts corrigés.
+
+Le PDF est validé uniquement lorsqu'aucun texte n'est coupé, aucun élément ne se superpose et que les mentions de spécimen restent lisibles.
+
+## 9. Méthode de travail
+
+Procéder progressivement :
+
+**Phase 0 : audit du dépôt et état initial**
+
+Examiner le code, l'état Git, les dépendances, les tests existants et les risques. Créer une branche de refonte si possible.
+
+**Phase 1 : design system et composants premium**
+
+Refactoriser les styles, construire les cards réutilisables et moderniser le shell sans modifier les données.
+
+**Phase 2 : listes et navigation**
+
+Remplacer les tableaux des registres par les nouveaux composants, puis moderniser les détails et les formulaires.
+
+**Phase 3 : documents PDF**
+
+Corriger la génération, développer les modèles de documents et intégrer la visionneuse affichant le véritable PDF.
+
+**Phase 4 : dashboard et finitions**
+
+Harmoniser les pages, les états, l'accessibilité et les exports.
+
+**Phase 5 : tests de non-régression**
+
+Contrôler l'application, les documents, les parcours métiers et les différents formats d'écran.
+
+À la fin de chaque phase, fournir les fichiers modifiés, les changements réalisés, les tests réellement exécutés, les captures ou rendus disponibles et les anomalies restantes.
+
+Ne prétends jamais avoir validé une interface sans l'avoir réellement rendue ou testée.
+
+**Commence par la Phase 0, puis implémente la Phase 1. Ne lance pas une refonte générale incontrôlée de la base de données ou du backend. La priorité est un rendu visuel premium, des cards réutilisables et une génération PDF fiable.**
+
+## 5. Ordre de réalisation recommandé
+
+Étape 1 — Fondation graphique
+
+Nettoyage CSS, nouveaux composants et grille responsive. C'est le préalable à une interface cohérente.
+
+Étape 2 — Registres en cards
+
+Citoyens, Naissances, CIN, Demandes, Administration et demandes récentes.
+
+Étape 3 — PDF professionnel
+
+Génération fiable, prévisualisation fidèle, impression, pagination et tests visuels.
+
+Étape 4 — Harmonisation et recette
+
+Formulaires, dashboard, responsive, accessibilité et tests de non-régression.
+
+Ma recommandation : fais travailler Copilot phase par phase, plutôt que de lui demander de modifier tout le projet en une seule opération. Cela permettra de juger le résultat visuel de la première page transformée en cards, d'ajuster la direction artistique, puis de la généraliser à l'ensemble de SGAEC.
+
+Cette analyse repose sur le code transmis, les tests Python exécutés et les PDF générés. Je n'ai pas démarré l'application complète sous Docker ni effectué de recette visuelle dans un navigateur connecté à sa base. Ces vérifications restent nécessaires avant d'approuver la refonte.

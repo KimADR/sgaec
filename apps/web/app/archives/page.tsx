@@ -1,2 +1,5 @@
-import ComingSoon from '@/components/ComingSoon';
-export default function Page() { return <ComingSoon title="Archives" detail="Recherche multicritère, gestion des pièces et archivage sécurisé."/>; }
+import RequestExplorer from '@/components/RequestExplorer';
+
+export default function ArchivesPage() {
+  return <RequestExplorer mode="archives"/>;
+}

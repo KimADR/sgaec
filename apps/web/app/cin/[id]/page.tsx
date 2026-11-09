@@ -2,57 +2,81 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { ArrowLeft, CheckCheck, Download, IdCard, Image as ImageIcon, MapPinned } from 'lucide-react';
-import { apiGet, apiGetBlob } from '@/lib/api';
+import { ArrowLeft, CheckCheck, IdCard, Image as ImageIcon, MapPinned } from 'lucide-react';
+import { useCan } from '@/components/AccessContext';
+import { apiGet } from '@/lib/api';
 import type { CinCase } from '@/lib/types';
 import { dateFr, fullName } from '@/lib/format';
 import { Status } from '@/components/Status';
-import CinPreview from '@/components/CinPreview';
+import PdfDocumentViewer from '@/components/PdfDocumentViewer';
+import CinWorkflowPanel from '@/components/CinWorkflowPanel';
+
 export default function CinDetail() {
+  const canPreview = useCan('documents:preview');
   const params = useParams<{id: string}>();
   const [r, setR] = useState<CinCase | null>(null);
   const [error, setError] = useState('');
-  const [pdfError, setPdfError] = useState('');
-  const [downloadingPdf, setDownloadingPdf] = useState(false);
-  useEffect(() => { if (params.id) apiGet<CinCase>(`/cin/${params.id}`).then(setR).catch((e: Error) => setError(e.message)); }, [params.id]);
-  async function downloadSpecimen() {
-    if (!r) return;
-    setPdfError('');
-    setDownloadingPdf(true);
-    try {
-      const pdf = await apiGetBlob(`/cin/${r.id}/specimen.pdf`);
-      const url = URL.createObjectURL(pdf);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `cin-specimen-${r.id.slice(0, 8)}.pdf`;
-      document.body.append(link);
-      link.click();
-      link.remove();
-      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
-    } catch (e) {
-      setPdfError(e instanceof Error ? e.message : 'Impossible de télécharger le PDF spécimen.');
-    } finally {
-      setDownloadingPdf(false);
+  const [pdfMode, setPdfMode] = useState<'maquette' | 'suivi'>('maquette');
+  useEffect(() => {
+    let active = true;
+    setR(null);
+    setError('');
+    if (params.id) {
+      apiGet<CinCase>(`/cin/${params.id}`)
+        .then(record => { if (active) setR(record); })
+        .catch((e: Error) => { if (active) setError(e.message); });
     }
-  }
-  if (error) return <div className="alert-error">{error}</div>;
-  if (!r) return <div className="panel loading-panel">Chargement du dossier…</div>;
-  return <div className="page-stack"><div className="breadcrumbs">CIN <span>›</span> <Link href="/cin">Dossiers</Link> <span>›</span> {r.file_number}</div>
-    <div className="page-head"><div><h2>Dossier de demande de CIN</h2><p>{r.file_number} — {fullName(r)}</p></div><div className="head-actions"><Link className="outline-button" href="/cin"><ArrowLeft size={16}/> Tous les dossiers</Link><button className="primary-button" type="button" onClick={downloadSpecimen} disabled={downloadingPdf}><Download size={16}/>{downloadingPdf ? 'Préparation du PDF…' : 'Télécharger la maquette PDF (105 × 74 mm)'}</button></div></div>
-    {pdfError && <div className="alert-error" role="alert">{pdfError}</div>}
-    <div className="detail-grid"><section className="panel detail-card"><div className="panel-heading"><h3><IdCard size={18}/> Informations du demandeur</h3><Status status={r.status}/></div>
-      <dl className="detail-list"><div><dt>Nom</dt><dd>{r.last_name}</dd></div><div><dt>Prénom(s)</dt><dd>{r.first_names}</dd></div>
-        <div><dt>Date de naissance</dt><dd>{dateFr(r.birth_date)}</dd></div><div><dt>Lieu de naissance</dt><dd>{r.birth_place}</dd></div><div><dt>Domicile</dt><dd>{r.address}</dd></div>
-        <div><dt>Arrondissement</dt><dd>{r.district}</dd></div><div><dt>Profession</dt><dd>{r.profession || 'Non renseignée'}</dd></div></dl>
-      <div className="subpanel-title"><MapPinned size={17}/> Informations des parents</div>
-      <dl className="detail-list compact"><div><dt>Père</dt><dd>{r.father_name || 'Non renseigné'}</dd></div><div><dt>Mère</dt><dd>{r.mother_name || 'Non renseigné'}</dd></div></dl>
-      <div className="subpanel-title"><CheckCheck size={17}/> Pièces fournies (déclaratif)</div>
-      <div className="pieces-list"><span className={r.has_birth_certificate ? 'provided' : ''}>{r.has_birth_certificate ? '✓' : '–'} Copie d'acte de naissance</span>
-        <span className={r.has_residence_proof ? 'provided' : ''}>{r.has_residence_proof ? '✓' : '–'} Justificatif de domicile</span>
-        <span><ImageIcon size={14}/> {r.photos_count} photo(s) déclarée(s)</span></div>
-      <div className="subpanel-title">Statut du dossier</div><div className="progress-steps"><div className="progress-node done">✓<span>Enregistré</span></div><div className="progress-node">2<span>En cours</span></div><div className="progress-node">3<span>Validé</span></div><div className="progress-node">4<span>Remis</span></div></div>
-    </section><section className="panel document-panel"><div className="panel-heading"><h3>Aperçu — Carte d’exercice (spécimen)</h3></div><CinPreview record={r}/>
-      <p className="context-note">Maquette illustrative de 105 × 74 mm, sans valeur officielle. Elle ne constitue pas une carte nationale d’identité et ne peut pas être utilisée comme pièce d’identité.</p>
-    </section></div>
+    return () => { active = false; };
+  }, [params.id]);
+  if (error) return <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800" role="alert">{error}</div>;
+  if (!r) return <div className="rounded-2xl border border-line bg-white p-8 text-center text-sm text-muted" role="status">Chargement du dossier…</div>;
+  return <div className="flex flex-col gap-5"><p className="m-0 text-xs font-medium text-muted">CIN <span className="px-1">›</span> <Link className="hover:text-blue" href="/cin">Dossiers</Link> <span className="px-1">›</span> {r.file_number}</p>
+    <header className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center"><div><h2 className="m-0 text-2xl font-bold text-ink">Dossier de demande de CIN</h2><p className="mt-2 text-sm text-muted">{r.file_number} — {fullName(r)}</p></div><Link className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-line bg-white px-3 text-sm font-semibold text-navy-2 hover:bg-slate-50" href="/cin"><ArrowLeft size={16}/> Tous les dossiers</Link></header>
+    <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]"><div className="space-y-5"><section className="overflow-hidden rounded-2xl border border-line bg-white shadow-sm"><div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-4"><h3 className="m-0 flex items-center gap-2 text-base font-bold text-ink"><IdCard size={18} className="text-navy"/> Informations du demandeur</h3><Status status={r.status} issuedLabel="Clôturé"/></div>
+      <dl className="grid grid-cols-1 gap-x-6 px-5 py-2 sm:grid-cols-2">{[
+        ['Nom', r.last_name], ['Prénom(s)', r.first_names], ['Date de naissance', dateFr(r.birth_date)],
+        ['Lieu de naissance', r.birth_place], ['Domicile', r.address], ['Arrondissement', r.district],
+        ['Profession', r.profession || 'Non renseignée'],
+      ].map(([label, value]) => <div key={label} className="border-b border-line py-3"><dt className="text-xs text-muted">{label}</dt><dd className="mt-1 break-words text-sm font-semibold text-ink">{value}</dd></div>)}</dl>
+      <div className="mx-4 mt-4 flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm font-bold text-navy-2"><MapPinned size={17}/> Informations des parents</div>
+      <dl className="grid grid-cols-1 gap-x-6 px-5 py-2 sm:grid-cols-2"><div className="border-b border-line py-3"><dt className="text-xs text-muted">Père</dt><dd className="mt-1 text-sm font-semibold text-ink">{r.father_name || 'Non renseigné'}</dd></div><div className="border-b border-line py-3"><dt className="text-xs text-muted">Mère</dt><dd className="mt-1 text-sm font-semibold text-ink">{r.mother_name || 'Non renseigné'}</dd></div></dl>
+      <div className="mx-4 mt-3 flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm font-bold text-navy-2"><CheckCheck size={17}/> Pièces fournies (déclaratif)</div>
+      <div className="flex flex-wrap gap-2 p-4 text-xs"><span className={`rounded-full px-3 py-2 ${r.has_birth_certificate ? 'bg-emerald-50 text-emerald-800' : 'bg-slate-100 text-slate-700'}`}>{r.has_birth_certificate ? '✓' : '–'} Copie d'acte de naissance</span>
+        <span className={`rounded-full px-3 py-2 ${r.has_residence_proof ? 'bg-emerald-50 text-emerald-800' : 'bg-slate-100 text-slate-700'}`}>{r.has_residence_proof ? '✓' : '–'} Justificatif de domicile</span>
+        <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-3 py-2 text-slate-700"><ImageIcon size={14}/> {r.photos_count} photo(s) déclarée(s)</span></div>
+    </section><CinWorkflowPanel record={r} onUpdated={setR}/></div>{canPreview
+      ? <div className="flex flex-col gap-3">
+          <section className="rounded-2xl border border-line bg-white p-4 shadow-sm" aria-label="Choix du document PDF">
+            <div className="flex flex-wrap gap-2" role="group" aria-label="Modèle de document">
+              <button
+                className={`min-h-10 rounded-lg px-3 text-sm font-semibold ${pdfMode === 'maquette' ? 'bg-navy text-white' : 'border border-line bg-white text-navy-2 hover:bg-slate-50'}`}
+                type="button"
+                aria-pressed={pdfMode === 'maquette'}
+                onClick={() => setPdfMode('maquette')}
+              >
+                Maquette CIN — visuel
+              </button>
+              <button
+                className={`min-h-10 rounded-lg px-3 text-sm font-semibold ${pdfMode === 'suivi' ? 'bg-navy text-white' : 'border border-line bg-white text-navy-2 hover:bg-slate-50'}`}
+                type="button"
+                aria-pressed={pdfMode === 'suivi'}
+                onClick={() => setPdfMode('suivi')}
+              >
+                Fiche de suivi — A4
+              </button>
+            </div>
+            {pdfMode === 'maquette' && (
+              <p className="mb-0 mt-3 text-xs leading-5 text-muted">
+                Illustration SPECIMEN réservée aux données fictives de démonstration. Sans valeur officielle, numéro, photographie réelle, signature ni empreinte.
+              </p>
+            )}
+          </section>
+          <PdfDocumentViewer
+            key={`${r.id}-${pdfMode}`}
+            path={pdfMode === 'maquette' ? `/cin/${r.id}/maquette.pdf` : `/cin/${r.id}/specimen.pdf`}
+            filename={pdfMode === 'maquette' ? `cin-maquette-demo-${r.id.slice(0, 8)}.pdf` : `fiche-cin-specimen-${r.id.slice(0, 8)}.pdf`}
+          />
+        </div>
+      : <section className="rounded-2xl border border-line bg-white p-5 text-sm text-muted" role="status">Votre profil n’est pas habilité à consulter le PDF spécimen.</section>}</div>
   </div>;
 }

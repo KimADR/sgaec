@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
+import { useCan } from '@/components/AccessContext';
+import AccessDenied from '@/components/AccessDenied';
 import { apiGet, apiPost } from '@/lib/api';
 
 type RoleOption = { code: string; name: string };
@@ -23,6 +25,7 @@ const initialForm = {
 };
 
 export default function AdministrationPage() {
+  const canManage = useCan('users:manage');
   const [users, setUsers] = useState<UserOption[]>([]);
   const [roles, setRoles] = useState<RoleOption[]>([]);
   const [centres, setCentres] = useState<CentreOption[]>([]);
@@ -56,7 +59,7 @@ export default function AdministrationPage() {
     }
   }
 
-  useEffect(() => { void loadAdministrationData(); }, []);
+  useEffect(() => { if (canManage) void loadAdministrationData(); }, [canManage]);
 
   async function submitUser(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -81,65 +84,64 @@ export default function AdministrationPage() {
     }
   }
 
-  return <div className="page-stack">
-    <section className="page-head">
-      <div><p className="eyebrow">GESTION DES ACCÈS</p><h2>Administration des utilisateurs</h2>
-        <p>Les rôles et centres proposés sont limités à la commune active et aux habilitations du compte.</p></div>
-    </section>
+  const fieldClass = 'flex min-w-0 flex-col gap-2 text-sm font-semibold text-ink';
+  const inputClass = 'min-h-11 w-full rounded-lg border border-line bg-white px-3 py-2 text-sm font-normal text-ink outline-none focus:border-blue focus:ring-2 focus:ring-blue/20';
+  if (!canManage) return <AccessDenied action="administrer les comptes utilisateurs"/>;
+  return <div className="flex flex-col gap-5">
+    <header><p className="mb-2 text-xs font-bold uppercase tracking-[0.16em] text-muted">Gestion des accès</p><h2 className="m-0 text-2xl font-bold text-ink">Administration des utilisateurs</h2>
+        <p className="mt-2 text-sm text-muted">Les rôles et centres proposés sont limités à la commune active et aux habilitations du compte.</p>
+    </header>
 
-    {error && <div className="alert-error" role="alert">{error}</div>}
-    {notice && <div className="alert-success" role="status">{notice}</div>}
+    {error && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800" role="alert">{error}</div>}
+    {notice && <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800" role="status">{notice}</div>}
 
-    <section className="panel">
-      <div className="panel-heading"><div><h3>Créer un compte</h3><p>Le mot de passe est haché par le service de données et n'est jamais réaffiché.</p></div></div>
-      <form className="form-grid" onSubmit={submitUser}>
-        <label className="field">Identifiant
-          <input required minLength={3} maxLength={80} pattern="[A-Za-z0-9._-]+"
+    <section className="overflow-hidden rounded-2xl border border-line bg-white shadow-sm">
+      <div className="border-b border-line px-5 py-4"><h3 className="m-0 text-base font-bold text-ink">Créer un compte</h3><p className="mt-1 text-sm text-muted">Le mot de passe est haché par le service de données et n'est jamais réaffiché.</p></div>
+      <form className="grid grid-cols-1 gap-5 p-5 sm:grid-cols-2" onSubmit={submitUser}>
+        <label className={fieldClass}>Identifiant
+          <input className={inputClass} required minLength={3} maxLength={80} pattern="[A-Za-z0-9._-]+"
             autoComplete="off" value={form.username}
             onChange={event => setForm({ ...form, username: event.target.value })} />
         </label>
-        <label className="field">Nom complet
-          <input required minLength={2} maxLength={160} value={form.full_name}
+        <label className={fieldClass}>Nom complet
+          <input className={inputClass} required minLength={2} maxLength={160} value={form.full_name}
             onChange={event => setForm({ ...form, full_name: event.target.value })} />
         </label>
-        <label className="field">Mot de passe temporaire
-          <input required type="password" minLength={16} maxLength={256} autoComplete="new-password"
+        <label className={fieldClass}>Mot de passe temporaire
+          <input className={inputClass} required type="password" minLength={16} maxLength={256} autoComplete="new-password"
             value={form.password} onChange={event => setForm({ ...form, password: event.target.value })} />
         </label>
-        <label className="field">Rôle
-          <select required value={form.role_code}
+        <label className={fieldClass}>Rôle
+          <select className={inputClass} required value={form.role_code}
             onChange={event => setForm({ ...form, role_code: event.target.value })}>
             {roles.map(role => <option key={role.code} value={role.code}>{role.name}</option>)}
           </select>
         </label>
-        <label className="field">Centre d'état civil
-          <select required value={form.centre_id}
+        <label className={fieldClass}>Centre d'état civil
+          <select className={inputClass} required value={form.centre_id}
             onChange={event => setForm({ ...form, centre_id: event.target.value })}>
             {centres.map(centre => <option key={centre.id} value={centre.id}>{centre.name}</option>)}
           </select>
         </label>
-        <div className="form-actions">
-          <button className="primary-button" type="submit" disabled={saving || !roles.length || !centres.length}>
+        <div className="flex items-end sm:col-span-2 sm:justify-end">
+          <button className="inline-flex min-h-11 items-center justify-center rounded-lg bg-blue px-4 text-sm font-semibold text-white hover:bg-blue-dark disabled:cursor-not-allowed disabled:opacity-50" type="submit" disabled={saving || !roles.length || !centres.length}>
             {saving ? 'Création…' : 'Créer le compte'}
           </button>
         </div>
       </form>
     </section>
 
-    <section className="panel">
-      <div className="panel-heading"><div><h3>Comptes affectés</h3><p>Comptes actifs visibles dans la portée territoriale autorisée.</p></div></div>
-      <div className="table-scroll"><table className="data-table">
-        <thead><tr><th>Identifiant</th><th>Nom</th><th>Rôles</th><th>Centres affectés</th></tr></thead>
-        <tbody>
-          {users.map(user => <tr key={user.id}>
-            <td>{user.username}</td><td>{user.full_name}</td>
-            <td>{user.roles.map(role => role.name).join(', ')}</td>
-            <td>{user.centres.map(centre => centre.name).join(', ')}</td>
-          </tr>)}
-          {!loading && users.length === 0 && <tr><td colSpan={4} className="empty-cell">Aucun utilisateur affecté dans cette portée.</td></tr>}
-          {loading && <tr><td colSpan={4} className="empty-cell">Chargement des comptes…</td></tr>}
-        </tbody>
-      </table></div>
+    <section className="overflow-hidden rounded-2xl border border-line bg-white shadow-sm">
+      <div className="border-b border-line px-5 py-4"><h3 className="m-0 text-base font-bold text-ink">Comptes affectés</h3><p className="mt-1 text-sm text-muted">Comptes actifs visibles dans la portée territoriale autorisée.</p></div>
+      {loading ? <p className="p-6 text-center text-sm text-muted" role="status">Chargement des comptes…</p>
+        : !users.length ? <p className="p-6 text-center text-sm text-muted">Aucun utilisateur affecté dans cette portée.</p>
+        : <div className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2 xl:grid-cols-3">{users.map(user => <article key={user.id} className="flex min-w-0 items-start gap-3 rounded-xl border border-line p-4">
+          <span aria-hidden="true" className="grid size-11 shrink-0 place-items-center rounded-full bg-sky-50 text-sm font-bold text-navy">{user.full_name.trim().split(/\s+/).slice(0, 2).map(part => part.charAt(0)).join('').toLocaleUpperCase('fr-FR')}</span>
+          <div className="min-w-0"><h4 className="m-0 break-words text-sm font-bold text-ink">{user.full_name}</h4><p className="mt-1 break-all text-xs text-muted">{user.username}</p>
+            <p className="mt-3 text-xs font-semibold text-navy-2">{user.roles.map(role => role.name).join(', ') || 'Aucun rôle'}</p>
+            <p className="mt-1 break-words text-xs leading-5 text-muted">{user.centres.map(centre => centre.name).join(', ') || 'Aucun centre affecté'}</p>
+          </div>
+        </article>)}</div>}
     </section>
   </div>;
 }

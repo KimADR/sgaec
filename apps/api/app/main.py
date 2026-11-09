@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+from datetime import date
 import os
 import re
 from typing import Any, Literal
@@ -10,12 +11,15 @@ from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, Response
 
 from .auth import AuthConfig, create_access_token, decode_access_token, load_auth_config
+from .cin_card import render_cin_card_preview
 from .models import (
     BirthCreate,
     BirthTransition,
     CitizenCreate,
     CitizenUpdate,
     CinCreate,
+    CinEvidenceUpdate,
+    CinTransition,
     LoginRequest,
     UserCreate,
 )
@@ -111,13 +115,20 @@ async def demo_security_headers(request, call_next):
             return JSONResponse({"detail": "Commune non autorisée"}, status_code=403)
         user["commune_id"] = selected_commune["id"]
         permission = permission_for_request(request.method, path)
-        granted_permissions = user.get("permissions", [])
+        granted_permissions = selected_commune.get("permissions")
+        if not isinstance(granted_permissions, list):
+            return JSONResponse(
+                {"detail": "Session à renouveler"},
+                status_code=401,
+                headers={"WWW-Authenticate": "Bearer"},
+            )
         if isinstance(permission, tuple):
             permitted = any(item in granted_permissions for item in permission)
         else:
             permitted = permission is None or permission in granted_permissions
         if not permitted:
             return JSONResponse({"detail": "Permission insuffisante"}, status_code=403)
+        request.state.permissions = granted_permissions
         if (
             not bearer_token
             and request.method in {"POST", "PUT", "PATCH", "DELETE"}
@@ -172,7 +183,8 @@ async def current_user(request: Request):
     return {
         "id": user["sub"],
         "username": user["username"],
-        "roles": selected_commune.get("roles", user["roles"]),
+        "roles": selected_commune.get("roles", []),
+        "permissions": selected_commune.get("permissions", []),
         "communes": user["communes"],
         "current_commune_id": user["commune_id"],
     }
@@ -216,9 +228,37 @@ async def dashboard(request: Request):
     return await forward("GET", "/summary", tenant=request)
 
 
+@app.get("/api/v1/reports")
+async def reports(
+    request: Request,
+    start_date: date,
+    end_date: date,
+):
+    if start_date > end_date or (end_date - start_date).days > 365:
+        raise HTTPException(
+            status_code=422,
+            detail="La période doit être ordonnée et ne pas dépasser 366 jours.",
+        )
+    return await forward(
+        "GET",
+        "/reports",
+        params={"start_date": start_date.isoformat(), "end_date": end_date.isoformat()},
+        tenant=request,
+    )
+
+
 @app.get("/api/v1/citizens")
-async def list_citizens(request: Request, q: str = Query(default="", max_length=80)):
-    return await forward("GET", "/citizens", params={"q": q}, tenant=request)
+async def list_citizens(
+    request: Request,
+    q: str = Query(default="", max_length=80),
+    page: int = Query(default=1, ge=1, le=1000),
+    page_size: int = Query(default=25, ge=1, le=100),
+):
+    return await forward(
+        "GET", "/citizens",
+        params={"q": q, "page": page, "page_size": page_size},
+        tenant=request,
+    )
 
 
 @app.get("/api/v1/citizens/{citizen_id}")
@@ -252,8 +292,43 @@ async def archive_citizen(citizen_id: UUID, request: Request):
 
 
 @app.get("/api/v1/births")
-async def list_births(request: Request, q: str = Query(default="", max_length=80)):
-    return await forward("GET", "/births", params={"q": q}, tenant=request)
+async def list_births(
+    request: Request,
+    q: str = Query(default="", max_length=80),
+    status: str = Query(default="", max_length=16),
+    page: int = Query(default=1, ge=1, le=1000),
+    page_size: int = Query(default=25, ge=1, le=100),
+):
+    return await forward(
+        "GET", "/births",
+        params={"q": q, "status": status, "page": page, "page_size": page_size},
+        tenant=request,
+    )
+
+
+@app.get("/api/v1/requests")
+async def list_requests(
+    request: Request,
+    q: str = Query(default="", max_length=80),
+    request_type: Literal["all", "births", "cin"] = Query(default="all", alias="type"),
+    status: str = Query(default="", max_length=16),
+    page: int = Query(default=1, ge=1, le=1000),
+    page_size: int = Query(default=25, ge=1, le=100),
+    scope: Literal["all", "active", "closed"] = Query(default="all"),
+):
+    return await forward(
+        "GET",
+        "/requests",
+        params={
+            "q": q,
+            "type": request_type,
+            "scope": scope,
+            "status": status,
+            "page": page,
+            "page_size": page_size,
+        },
+        tenant=request,
+    )
 
 
 @app.post("/api/v1/births", status_code=201)
@@ -287,14 +362,45 @@ async def birth_specimen(record_id: UUID, request: Request):
 
 
 @app.get("/api/v1/cin")
-async def list_cin(request: Request, q: str = Query(default="", max_length=80)):
-    return await forward("GET", "/cin", params={"q": q}, tenant=request)
+async def list_cin(
+    request: Request,
+    q: str = Query(default="", max_length=80),
+    status: str = Query(default="", max_length=16),
+    page: int = Query(default=1, ge=1, le=1000),
+    page_size: int = Query(default=25, ge=1, le=100),
+):
+    return await forward(
+        "GET", "/cin",
+        params={"q": q, "status": status, "page": page, "page_size": page_size},
+        tenant=request,
+    )
 
 
 @app.post("/api/v1/cin", status_code=201)
 async def create_cin(request: Request, body: CinCreate):
     return await forward("POST", "/cin",
                          json=body.model_dump(mode="json"), tenant=request)
+
+
+@app.put("/api/v1/cin/{case_id}/evidence")
+async def update_cin_evidence(case_id: UUID, request: Request, body: CinEvidenceUpdate):
+    return await forward(
+        "PUT", f"/cin/{case_id}/evidence",
+        json=body.model_dump(mode="json"), tenant=request,
+    )
+
+
+@app.post("/api/v1/cin/{case_id}/transition")
+async def transition_cin(case_id: UUID, request: Request, body: CinTransition):
+    return await forward(
+        "POST", f"/cin/{case_id}/transition",
+        json=body.model_dump(mode="json"), tenant=request,
+    )
+
+
+@app.get("/api/v1/cin/{case_id}/history")
+async def cin_history(case_id: UUID, request: Request):
+    return await forward("GET", f"/cin/{case_id}/history", tenant=request)
 
 
 @app.get("/api/v1/cin/{case_id}")
@@ -311,6 +417,39 @@ async def cin_specimen(case_id: UUID, request: Request):
         media_type="application/pdf",
         headers={
             "Content-Disposition": f'inline; filename="cin-specimen-{str(case_id)[:8]}.pdf"',
+            "Cache-Control": "no-store",
+        },
+    )
+
+
+@app.get("/api/v1/cin/{case_id}/maquette.pdf")
+async def cin_maquette(case_id: UUID, request: Request):
+    """Aperçu graphique SPECIMEN, distinct de la fiche de suivi A4."""
+    if "documents:preview" not in request.state.permissions:
+        raise HTTPException(status_code=403, detail="Permission de prévisualisation documentaire insuffisante")
+
+    record = await forward("GET", f"/documents/cin/{case_id}", tenant=request)
+    if not isinstance(record, dict) or record.get("id") != str(case_id):
+        raise HTTPException(status_code=502, detail="Le service de données a renvoyé un dossier CIN invalide")
+
+    required_fields = ("last_name", "first_names", "birth_date", "birth_place", "address", "district")
+    missing_fields = [
+        field for field in required_fields
+        if not isinstance(record.get(field), str) or not record[field].strip()
+    ]
+    if missing_fields:
+        raise HTTPException(status_code=422, detail="Dossier CIN incomplet : " + ", ".join(missing_fields))
+    try:
+        date.fromisoformat(record["birth_date"][:10])
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail="Date de naissance invalide pour la maquette CIN") from exc
+
+    pdf = render_cin_card_preview(record)
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'inline; filename="cin-maquette-demo-{str(case_id)[:8]}.pdf"',
             "Cache-Control": "no-store",
         },
     )
@@ -345,6 +484,10 @@ def permission_for_request(method: str, path: str) -> str | tuple[str, ...] | No
         return None
     if path == "/api/v1/dashboard":
         return "dashboard:read"
+    if path == "/api/v1/reports":
+        return "dashboard:read"
+    if path == "/api/v1/requests":
+        return ("births:read", "cin:read")
     if path == "/api/v1/documents/export.zip":
         return "documents:preview"
     if path.startswith("/api/v1/citizens"):
@@ -358,6 +501,10 @@ def permission_for_request(method: str, path: str) -> str | tuple[str, ...] | No
             return ("births:workflow", "documents:deliver") if method == "POST" else "births:workflow"
         return "births:create" if method == "POST" and path == "/api/v1/births" else "births:read"
     if path.startswith("/api/v1/cin"):
+        if path.endswith("/evidence") and method == "PUT":
+            return ("cin:create", "cin:workflow")
+        if path.endswith("/transition") and method == "POST":
+            return ("cin:workflow", "documents:deliver")
         if path.endswith("/specimen.pdf"):
             return "documents:preview"
         return "cin:create" if method == "POST" and path == "/api/v1/cin" else "cin:read"

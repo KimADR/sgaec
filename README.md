@@ -1,4 +1,6 @@
-# SGAEC — Prototype Next.js + FastAPI + Prisma ORM + PostgreSQL + Docker
+# SGAEC — Prototype Next.js + Tailwind CSS + FastAPI + Prisma ORM + PostgreSQL + Docker
+
+> Compte rendu de la comparaison avec la livraison DSI : [RAPPORT_INTEGRATION_DSI.md](RAPPORT_INTEGRATION_DSI.md).
 
 Application de démonstration inspirée de la maquette fournie, pour les démarches d'état civil de l'Arrondissement II à Antananarivo.
 
@@ -6,12 +8,15 @@ Application de démonstration inspirée de la maquette fournie, pour les démarc
 
 ## Modules implémentés
 
-- **Accueil** : indicateurs et demandes récentes actualisés à partir de PostgreSQL.
-- **Naissances** : liste filtrable, enregistrement guidé en trois étapes, fiche détaillée, aperçu de document et export PDF A4 **SPÉCIMEN** avec filigrane. L'aperçu et le PDF reprennent l'arrondissement et la commune du dossier ; le téléchargement transmet aussi la commune active pour appliquer les permissions territoriales.
-- **CIN** : liste filtrable, création d'une demande, déclaration des pièces, fiche détaillée, aperçu graphique **NON OFFICIEL** et export PDF de dossier **SPÉCIMEN** (ce n'est pas une carte d'identité).
-- **Citoyens** : répertoire multi-communes avec recherche, fiches, création, modification et archivage non destructif ; les actes associés restent consultables et inchangés.
-- **Demandes** : les six dernières demandes des modules Naissances et CIN.
-- **Mariages, Décès, Archives, Rapports, Administration** : pages de réservation pour phases ultérieures, sans faux fonctionnement.
+- **Accueil** : indicateurs des dossiers actifs et demandes récentes, filtrés selon les habilitations de l'utilisateur et le périmètre communal.
+- **Naissances** : recherche et filtre de statut avec pagination serveur réglable (5/10/25/50), enregistrement guidé en trois étapes et transitions disponibles selon le rôle de la commune active. L'aperçu affiche le PDF A4 **SPÉCIMEN** réellement produit par l'API ; le téléchargement et l'impression portent sur le même fichier.
+- **CIN** : liste paginée avec recherche et filtre de statut, workflow Enregistré → En instruction → Validé → Clôturé (simulation), rejet motivé, contrôle et correction des pièces déclarées, journal horodaté des opérations et deux aperçus PDF marqués **SPECIMEN**. Les transitions et exports restent soumis aux permissions et au périmètre territorial.
+- **Citoyens** : répertoire multi-communes paginé avec recherche, fiches, création, modification et archivage non destructif ; les actes associés restent consultables et inchangés.
+- **Demandes** : recherche consolidée paginée (5/10/25/50) des dossiers actifs Naissances et CIN accessibles, avec filtres et export CSV de la page en cours, protégé contre l'injection de formules tableur.
+- **Archives numériques consultables** : recherche paginée des dossiers clôturés ou rejetés accessibles. Le versement et la conservation réglementaires ne sont pas implémentés.
+- **Rapports** : volumes agrégés réels par période, type et statut, limités à la commune et au périmètre d’affectation ; export CSV sans données nominatives et marqué démonstration.
+- **Administration** : création et consultation de comptes d’agents fictifs, avec rôles et centres limités à la commune active ; l’administration complète des permissions et de l’audit reste à développer.
+- **Mariages et Décès** : réservés aux phases ultérieures, sans faux fonctionnement.
 
 ## Architecture
 
@@ -19,7 +24,7 @@ Application de démonstration inspirée de la maquette fournie, pour les démarc
 Navigateur
    |
    v
-Next.js 16 + React 19 (apps/web, port localhost:3000)
+Next.js 16 + React 19 + Tailwind CSS 4 (apps/web, port localhost:3000)
    |  proxy /backend/*
    v
 FastAPI (apps/api, port localhost:8000)
@@ -31,13 +36,21 @@ Service Node / Express + Prisma 7 (apps/data, non exposé)
 PostgreSQL 16 existant (conteneur `sgaec-v3-postgres-1`)
 ```
 
+Tailwind CSS 4 est configuré via PostCSS et le thème de couleurs est défini dans
+`apps/web/app/globals.css`. Toutes les routes de l'interface et les composants partagés
+utilisent désormais les utilitaires Tailwind. Les listes de dossiers sont présentées
+sous forme de cartes responsive ; le tableau des rapports reste tabulaire car il
+représente des agrégats et comporte des en-têtes accessibles.
+
 Prisma ORM est utilisé dans le service JavaScript interne car il n'est pas un ORM Python pour FastAPI. FastAPI centralise les règles de validation et la génération PDF. Le service Prisma ne doit pas être exposé directement au public.
+
+Les permissions de chaque commune sont transmises séparément au frontend et vérifiées côté FastAPI dans le périmètre sélectionné, puis à nouveau par le service de données. Après cette mise à jour, les anciens jetons sans permissions par commune doivent être renouvelés à la reconnexion.
 
 Pour un système moins complexe avec une seule API, une autre option serait d'utiliser SQLAlchemy avec FastAPI à la place de Prisma ; ce prototype conserve **les technologies demandées**.
 
 ## Références documentaires
 
-Le workspace contient `docs/maquette-reference.jpg` et un ancien PDF de spécimen, mais pas les photographies lisibles des actes de naissance, mariage, décès ni des deux faces de la CIN. Aucune nouvelle mise en page dite fidèle n'est donc revendiquée. Le modèle mariage/décès et l'aperçu CIN de référence restent en attente des images sources. Les documents existants restent des spécimens non officiels ; aucun cachet ou signature ne doit être ajouté.
+Le workspace contient `apps/api/app/assets/cin_specimen_demo.jpg`, une illustration de maquette marquée **SPECIMEN** sans valeur officielle, ainsi que la fiche de suivi A4. La maquette ne renseigne ni numéro national, ni photographie, ni signature, empreinte ou donnée de délivrance. Les deux PDF sont des documents de démonstration et ne doivent être générés qu'avec des dossiers fictifs. Le modèle mariage/décès reste en attente des images sources et d'une validation juridique.
 
 ## Démarrage avec Docker Desktop
 
@@ -119,9 +132,9 @@ Le test de persistance a redémarré les services applicatifs, pas le conteneur 
 
 ## Export des documents existants (2026-11-07)
 
-- Le bouton **Exporter les PDF de la commune** présent dans les listes Naissances et CIN télécharge une archive ZIP avec un PDF par acte de naissance et un PDF de fiche de démonstration par dossier CIN de la commune active.
+- Le bouton **Exporter les PDF de la commune** présent dans les listes Naissances et CIN télécharge une archive ZIP avec un PDF par acte de naissance et une fiche CIN de démonstration par dossier de la commune active. Les fiches CIN emploient uniquement des données fictives.
 - L'export est limité à la portée territoriale autorisée de l'utilisateur et journalisé dans `AuditEvent`. Pour exporter une autre commune, sélectionner cette commune dans l'en-tête puis lancer un nouvel export.
-- Tous les fichiers portent un filigrane visible **SPÉCIMEN — SANS VALEUR OFFICIELLE** pour les naissances et **SPÉCIMEN — NON VALABLE** pour les dossiers CIN. Les fiches CIN ne reproduisent pas une carte d'identité, ses éléments graphiques ou ses dispositifs de sécurité.
+- Chaque page porte un filigrane **SPÉCIMEN — SANS VALEUR OFFICIELLE**, un pied de page et sa pagination. Les fiches CIN précisent également qu'elles ne constituent pas une pièce d'identité. La maquette CIN reprend une disposition et une palette inspirées de la référence, sans emblème ni dispositif de sécurité officiel.
 - Les noms de fichiers reprennent les références de démonstration ; le ZIP contient également un fichier LIRE-MOI avec le nombre de documents exportés.
 
 Pages disponibles :
@@ -155,22 +168,29 @@ docker compose down
 | GET | `/api/v1/user-options` | Lister les rôles et centres affectables |
 | POST | `/api/v1/users` | Créer un utilisateur territorial (permission `users:manage`) |
 | GET | `/api/v1/dashboard` | Indicateurs et demandes récentes (JWT requis) |
+| GET | `/api/v1/reports?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD` | Agrégats naissance/CIN sur 366 jours maximum, selon la portée territoriale |
+| GET | `/api/v1/requests?q=&type=&status=&scope={active,closed,all}&page=&page_size=` | Recherche consolidée paginée, avec séparation des dossiers actifs et clôturés |
 | GET | `/api/v1/citizens?q=` | Rechercher les citoyens actifs dans la commune |
 | POST | `/api/v1/citizens` | Créer une fiche citoyen (permission `citizens:manage`) |
 | GET | `/api/v1/citizens/{id}` | Consulter une fiche et ses actes liés |
 | PUT | `/api/v1/citizens/{id}` | Modifier l’identité (les actes restent inchangés) |
 | DELETE | `/api/v1/citizens/{id}` | Archiver une fiche sans supprimer ses actes |
 | GET | `/api/v1/documents/export.zip` | Exporter les PDF spécimens des naissances et dossiers CIN de la commune autorisée |
-| GET | `/api/v1/births?q=` | Rechercher les naissances (100 max, prototype) |
+| GET | `/api/v1/births?q=&status=&page=&page_size=` | Rechercher les naissances avec pagination serveur |
 | POST | `/api/v1/births` | Créer un acte de naissance de démonstration |
 | GET | `/api/v1/births/{id}` | Consulter un acte |
 | POST | `/api/v1/births/{id}/transition` | Instruire, valider, rejeter ou enregistrer une délivrance |
 | GET | `/api/v1/births/{id}/specimen.pdf` | Export PDF A4 non officiel |
-| GET | `/api/v1/cin?q=` | Rechercher les demandes CIN (100 max) |
+| GET | `/api/v1/cin?q=&status=&page=&page_size=` | Rechercher les demandes CIN avec pagination serveur |
 | POST | `/api/v1/cin` | Créer un dossier CIN de démonstration |
 | GET | `/api/v1/cin/{id}` | Consulter un dossier |
+| PUT | `/api/v1/cin/{id}/evidence` | Corriger les pièces déclarées avant validation |
+| POST | `/api/v1/cin/{id}/transition` | Instruire, valider, rejeter avec motif ou clôturer en simulation |
+| GET | `/api/v1/cin/{id}/history` | Consulter le journal des changements et actions |
 
 Les dossiers de naissance traversent les statuts de démonstration `REGISTERED`, `IN_REVIEW`, `VALIDATED`, `REJECTED` et `ISSUED`, avec permissions distinctes de workflow et de délivrance. Les déclarations sont conservées dans `BirthDeclaration`, le registre compétent est sélectionné depuis la commune autorisée, et les transitions sont journalisées. Une référence `*-DEMO-*` est produite automatiquement et ne correspond **pas** à un numéro officiel.
+
+Les dossiers CIN n'acceptent la validation que si une copie d'acte, un justificatif de domicile et au moins deux photos sont déclarés. La permission `cin:workflow` gouverne l'instruction, la validation et le rejet ; `documents:deliver` gouverne la clôture simulée. La modification des pièces cesse après validation. Aucun de ces états ne constitue une délivrance de CIN officielle.
 
 ## Organisation des fichiers
 

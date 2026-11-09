@@ -2,52 +2,34 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { ArrowLeft, Download, FileText } from 'lucide-react';
-import BirthCertificate from '@/components/BirthCertificate';
+import { ArrowLeft, FileText } from 'lucide-react';
+import { useCan } from '@/components/AccessContext';
+import BirthWorkflowPanel from '@/components/BirthWorkflowPanel';
+import PdfDocumentViewer from '@/components/PdfDocumentViewer';
 import { Status } from '@/components/Status';
-import { apiGet, apiGetBlob } from '@/lib/api';
+import { apiGet } from '@/lib/api';
 import { dateFr, fullName } from '@/lib/format';
 import type { BirthRecord } from '@/lib/types';
 export default function BirthDetail() {
+  const canPreview = useCan('documents:preview');
   const params = useParams<{id: string}>();
   const [r, setR] = useState<BirthRecord | null>(null);
   const [error, setError] = useState('');
-  const [pdfError, setPdfError] = useState('');
-  const [downloadingPdf, setDownloadingPdf] = useState(false);
   useEffect(() => { if (params.id) apiGet<BirthRecord>(`/births/${params.id}`).then(setR).catch((e: Error) => setError(e.message)); }, [params.id]);
-  async function downloadSpecimen() {
-    if (!r) return;
-    setPdfError('');
-    setDownloadingPdf(true);
-    try {
-      const pdf = await apiGetBlob(`/births/${r.id}/specimen.pdf`);
-      const url = URL.createObjectURL(pdf);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `naissance-specimen-${r.id.slice(0, 8)}.pdf`;
-      document.body.append(link);
-      link.click();
-      link.remove();
-      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
-    } catch (e) {
-      setPdfError(e instanceof Error ? e.message : 'Impossible de télécharger le PDF.');
-    } finally {
-      setDownloadingPdf(false);
-    }
-  }
-  if (error) return <div className="alert-error">{error}</div>;
-  if (!r) return <div className="panel loading-panel">Chargement de l'acte…</div>;
-  return <div className="page-stack"><div className="breadcrumbs">État civil <span>›</span> <Link href="/naissances">Naissances</Link> <span>›</span> {r.record_number}</div>
-    <div className="page-head"><div><h2>Acte de naissance</h2><p>{r.record_number} — {fullName(r)}</p></div><div className="head-actions"><Link className="outline-button" href="/naissances"><ArrowLeft size={16}/> Retour</Link>
-      <button className="primary-button" type="button" onClick={downloadSpecimen} disabled={downloadingPdf}><Download size={16}/> {downloadingPdf ? 'Préparation du PDF…' : 'Télécharger le PDF spécimen'}</button></div></div>
-    {pdfError && <div className="alert-error" role="alert">{pdfError}</div>}
-    <div className="detail-grid"><section className="panel detail-card"><div className="panel-heading"><h3><FileText size={18}/> Informations enregistrées</h3><Status status={r.status}/></div>
-      <dl className="detail-list"><div><dt>Nom complet</dt><dd>{fullName(r)}</dd></div><div><dt>Sexe</dt><dd>{r.sex === 'M' ? 'Masculin' : 'Féminin'}</dd></div>
-        <div><dt>Date de naissance</dt><dd>{dateFr(r.birth_date)}</dd></div><div><dt>Lieu de naissance</dt><dd>{r.place_of_birth}</dd></div>
-        <div><dt>Arrondissement</dt><dd>{r.district}</dd></div><div><dt>Commune</dt><dd>{r.municipality}</dd></div>
-        <div><dt>Père</dt><dd>{r.father_name || 'Non renseigné'}</dd></div><div><dt>Mère</dt><dd>{r.mother_name || 'Non renseigné'}</dd></div>
-        <div><dt>Adresse</dt><dd>{r.address || 'Non renseigné'}</dd></div><div><dt>Enregistré le</dt><dd>{dateFr(r.created_at)}</dd></div></dl>
-      <div className="context-note">Le circuit officiel de validation, signature et délivrance n'est pas activé dans cette démonstration.</div>
-    </section><section className="panel document-panel"><div className="panel-heading"><h3>Aperçu — Acte de naissance (A4)</h3><span className="small-badge">SPÉCIMEN</span></div><BirthCertificate record={r}/></section></div>
+  if (error) return <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800" role="alert">{error}</div>;
+  if (!r) return <div className="rounded-2xl border border-line bg-white p-8 text-center text-sm text-muted" role="status">Chargement de l'acte…</div>;
+  return <div className="flex flex-col gap-5"><p className="m-0 text-xs font-medium text-muted">État civil <span className="px-1">›</span> <Link className="hover:text-blue" href="/naissances">Naissances</Link> <span className="px-1">›</span> {r.record_number}</p>
+    <header className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center"><div><h2 className="m-0 text-2xl font-bold text-ink">Acte de naissance</h2><p className="mt-2 text-sm text-muted">{r.record_number} — {fullName(r)}</p></div><Link className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-line bg-white px-3 text-sm font-semibold text-navy-2 hover:bg-slate-50" href="/naissances"><ArrowLeft size={16}/> Retour</Link></header>
+    <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]"><div className="flex min-w-0 flex-col gap-5"><section className="overflow-hidden rounded-2xl border border-line bg-white shadow-sm"><div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-4"><h3 className="m-0 flex items-center gap-2 text-base font-bold text-ink"><FileText size={18} className="text-navy"/> Informations enregistrées</h3><Status status={r.status}/></div>
+      <dl className="grid grid-cols-1 gap-x-6 px-5 py-2 sm:grid-cols-2">{[
+        ['Nom complet', fullName(r)], ['Sexe', r.sex === 'M' ? 'Masculin' : 'Féminin'],
+        ['Date de naissance', dateFr(r.birth_date)], ['Lieu de naissance', r.place_of_birth],
+        ['Arrondissement', r.district], ['Commune', r.municipality],
+        ['Père', r.father_name || 'Non renseigné'], ['Mère', r.mother_name || 'Non renseigné'],
+        ['Adresse', r.address || 'Non renseigné'], ['Enregistré le', dateFr(r.created_at)],
+      ].map(([label, value]) => <div key={label} className="border-b border-line py-3"><dt className="text-xs text-muted">{label}</dt><dd className="mt-1 break-words text-sm font-semibold text-ink">{value}</dd></div>)}</dl>
+    </section><BirthWorkflowPanel record={r} onUpdated={setR}/></div>{canPreview
+      ? <PdfDocumentViewer key={r.status} path={`/births/${r.id}/specimen.pdf`} filename={`naissance-specimen-${r.id.slice(0, 8)}.pdf`}/>
+      : <section className="rounded-2xl border border-line bg-white p-5 text-sm text-muted" role="status">Votre profil n’est pas habilité à consulter le PDF spécimen.</section>}</div>
   </div>;
 }

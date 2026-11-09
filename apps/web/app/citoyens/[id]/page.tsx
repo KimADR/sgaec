@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { Archive, ArrowLeft, ArrowRight, Pencil, UserRound } from 'lucide-react';
+import { useCan } from '@/components/AccessContext';
+import AccessDenied from '@/components/AccessDenied';
 import CitizenForm from '@/components/CitizenForm';
 import { Status } from '@/components/Status';
 import { apiDelete, apiGet, apiPut } from '@/lib/api';
@@ -11,6 +13,7 @@ import { dateFr } from '@/lib/format';
 import type { Citizen, CitizenInput } from '@/lib/types';
 
 export default function CitizenDetailPage() {
+  const canManage = useCan('citizens:manage');
   const params = useParams<{ id: string }>();
   const [citizen, setCitizen] = useState<Citizen | null>(null);
   const [editing, setEditing] = useState(false);
@@ -48,28 +51,29 @@ export default function CitizenDetailPage() {
     }
   }
 
-  if (error && !citizen) return <div className="alert-error" role="alert">{error}</div>;
-  if (!citizen) return <div className="panel loading-panel">Chargement de la fiche citoyen…</div>;
+  if (error && !citizen) return <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800" role="alert">{error}</div>;
+  if (!citizen) return <div className="rounded-2xl border border-line bg-white p-8 text-center text-sm text-muted" role="status">Chargement de la fiche citoyen…</div>;
 
-  return <div className="page-stack">
-    <div className="breadcrumbs"><Link href="/citoyens">Citoyens</Link><span>›</span>{citizen.last_name} {citizen.first_names}</div>
-    <div className="page-head">
-      <div><h2>Fiche citoyen</h2><p>{citizen.last_name} {citizen.first_names}</p></div>
-      <div className="head-actions">
-        <Link className="outline-button" href="/citoyens"><ArrowLeft size={16}/> Répertoire</Link>
-        {citizen.active && <button className="outline-button" type="button" onClick={() => { setEditing(value => !value); setError(''); setNotice(''); }}>
+  const buttonClass = 'inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-line bg-white px-3 text-sm font-semibold text-navy-2 transition hover:bg-slate-50 disabled:opacity-50';
+  return <div className="flex flex-col gap-5">
+    <p className="m-0 text-xs font-medium text-muted"><Link className="hover:text-blue" href="/citoyens">Citoyens</Link><span className="px-1">›</span>{citizen.last_name} {citizen.first_names}</p>
+    <header className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+      <div><h2 className="m-0 text-2xl font-bold text-ink">Fiche citoyen</h2><p className="mt-2 text-sm text-muted">{citizen.last_name} {citizen.first_names}</p></div>
+      <div className="flex flex-wrap gap-2">
+        <Link className={buttonClass} href="/citoyens"><ArrowLeft size={16}/> Répertoire</Link>
+        {canManage && citizen.active && <button className={buttonClass} type="button" onClick={() => { setEditing(value => !value); setError(''); setNotice(''); }}>
           <Pencil size={16}/>{editing ? 'Annuler la modification' : 'Modifier'}
         </button>}
-        {citizen.active && <button className="outline-button" type="button" onClick={archiveCitizen} disabled={archiving}>
+        {canManage && citizen.active && <button className={buttonClass} type="button" onClick={archiveCitizen} disabled={archiving}>
           <Archive size={16}/>{archiving ? 'Archivage…' : 'Archiver'}
         </button>}
       </div>
-    </div>
-    {error && <div className="alert-error" role="alert">{error}</div>}
-    {notice && <div className="alert-success" role="status">{notice}</div>}
+    </header>
+    {error && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800" role="alert">{error}</div>}
+    {notice && <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800" role="status">{notice}</div>}
 
-    {editing ? <section className="panel form-panel">
-      <div className="form-title"><UserRound size={23}/><div><h2>Modifier la fiche</h2><p>La modification de l’identité ne réécrit pas les actes déjà établis.</p></div></div>
+    {editing && !canManage ? <AccessDenied action="modifier ou archiver une fiche citoyen"/> : editing ? <section className="overflow-hidden rounded-2xl border border-line bg-white shadow-sm">
+      <div className="flex items-start gap-3 border-b border-line px-5 py-5"><UserRound size={23} className="mt-1 shrink-0 text-navy"/><div><h2 className="m-0 text-xl font-bold text-ink">Modifier la fiche</h2><p className="mt-1 text-sm text-muted">La modification de l’identité ne réécrit pas les actes déjà établis.</p></div></div>
       <CitizenForm initial={{
         last_name: citizen.last_name,
         first_names: citizen.first_names,
@@ -79,39 +83,28 @@ export default function CitizenDetailPage() {
         birth_place: citizen.birth_place,
       }} submitLabel="Enregistrer les modifications" onSubmit={updateCitizen}
         onCancel={() => setEditing(false)}/>
-    </section> : <div className="detail-grid citizen-detail-grid">
-      <section className="panel detail-card">
-        <div className="panel-heading"><h3><UserRound size={18}/> Informations du citoyen</h3>
-          <span className="small-badge">{citizen.active ? 'Actif' : 'Archivé'}</span>
+    </section> : <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+      <section className="overflow-hidden rounded-2xl border border-line bg-white shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-4"><h3 className="m-0 flex items-center gap-2 text-base font-bold text-ink"><UserRound size={18} className="text-navy"/> Informations du citoyen</h3>
+          <span className={`rounded-full px-3 py-1 text-xs font-semibold ${citizen.active ? 'bg-emerald-50 text-emerald-800' : 'bg-slate-100 text-slate-700'}`}>{citizen.active ? 'Actif' : 'Archivé'}</span>
         </div>
-        <dl className="detail-list">
-          <div><dt>Nom complet</dt><dd>{citizen.last_name} {citizen.first_names}</dd></div>
-          <div><dt>Sexe</dt><dd>{citizen.sex === 'M' ? 'Masculin' : 'Féminin'}</dd></div>
-          <div><dt>Date de naissance</dt><dd>{dateFr(citizen.birth_date)}</dd></div>
-          <div><dt>Nationalité</dt><dd>{citizen.nationality}</dd></div>
-          <div><dt>Lieu de naissance</dt><dd>{citizen.birth_place}</dd></div>
-          <div><dt>Commune</dt><dd>{citizen.commune.name}</dd></div>
-          <div><dt>Centre compétent</dt><dd>{citizen.centre.name}</dd></div>
-          <div><dt>Créée le</dt><dd>{dateFr(citizen.created_at)}</dd></div>
-          <div><dt>Modifiée le</dt><dd>{dateFr(citizen.updated_at)}</dd></div>
-        </dl>
+        <dl className="grid grid-cols-1 gap-x-6 px-5 py-2 sm:grid-cols-2">{[
+          ['Nom complet', `${citizen.last_name} ${citizen.first_names}`], ['Sexe', citizen.sex === 'M' ? 'Masculin' : 'Féminin'],
+          ['Date de naissance', dateFr(citizen.birth_date)], ['Nationalité', citizen.nationality],
+          ['Lieu de naissance', citizen.birth_place], ['Commune', citizen.commune.name],
+          ['Centre compétent', citizen.centre.name], ['Créée le', dateFr(citizen.created_at)],
+          ['Modifiée le', dateFr(citizen.updated_at)],
+        ].map(([label, value]) => <div key={label} className="border-b border-line py-3"><dt className="text-xs text-muted">{label}</dt><dd className="mt-1 break-words text-sm font-semibold text-ink">{value}</dd></div>)}</dl>
       </section>
-      <section className="panel detail-card">
-        <div className="panel-heading"><h3>Historique des actes de naissance</h3>
-          <span className="small-badge">{citizen.birth_records.length} acte(s)</span>
+      <section className="overflow-hidden rounded-2xl border border-line bg-white shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-4"><h3 className="m-0 text-base font-bold text-ink">Historique des actes de naissance</h3>
+          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-muted">{citizen.birth_records.length} acte(s)</span>
         </div>
-        <div className="table-scroll"><table className="data-table">
-          <thead><tr><th>Référence</th><th>Statut</th><th>Créé le</th><th></th></tr></thead>
-          <tbody>
-            {citizen.birth_records.map(record => <tr key={record.id}>
-              <td className="ref-link">{record.record_number}</td>
-              <td><Status status={record.status}/></td>
-              <td>{dateFr(record.created_at)}</td>
-              <td><Link className="icon-link" href={`/naissances/${record.id}`} aria-label={`Voir l’acte ${record.record_number}`}><ArrowRight size={16}/></Link></td>
-            </tr>)}
-            {citizen.birth_records.length === 0 && <tr><td colSpan={4} className="empty-cell">Aucun acte de naissance associé.</td></tr>}
-          </tbody>
-        </table></div>
+        {citizen.birth_records.length ? <div className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2">{citizen.birth_records.map(record => <article key={record.id} className="flex flex-col gap-3 rounded-xl border border-line p-4">
+          <div className="flex items-start justify-between gap-3"><span className="break-all text-sm font-bold text-navy">{record.record_number}</span><Status status={record.status}/></div>
+          <p className="m-0 text-xs text-muted">Créé le {dateFr(record.created_at)}</p>
+          <Link className="inline-flex min-h-10 items-center gap-2 self-start rounded-lg px-3 text-sm font-semibold text-blue hover:bg-sky-50" href={`/naissances/${record.id}`} aria-label={`Voir l’acte ${record.record_number}`}>Consulter <ArrowRight size={16}/></Link>
+        </article>)}</div> : <p className="p-6 text-center text-sm text-muted">Aucun acte de naissance associé.</p>}
       </section>
     </div>}
   </div>;

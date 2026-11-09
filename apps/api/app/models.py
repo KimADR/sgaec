@@ -1,7 +1,14 @@
-from datetime import date
+from datetime import date, datetime
 from typing import Literal
+from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+ANTANANARIVO = ZoneInfo("Indian/Antananarivo")
+
+
+def _today_in_antananarivo(now: datetime | None = None) -> date:
+    return (now or datetime.now(ANTANANARIVO)).astimezone(ANTANANARIVO).date()
 
 
 class InputBase(BaseModel):
@@ -17,7 +24,7 @@ class InputBase(BaseModel):
     @field_validator("birth_date")
     @classmethod
     def check_birth_date(cls, value: date) -> date:
-        if value > date.today() or value.year < 1900:
+        if value > _today_in_antananarivo() or value.year < 1900:
             raise ValueError("Date de naissance non valide")
         return value
 
@@ -34,6 +41,21 @@ class BirthTransition(BaseModel):
 
     status: Literal["IN_REVIEW", "VALIDATED", "REJECTED", "ISSUED"]
     reason: str = Field(default="", max_length=500)
+
+
+class CinTransition(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+
+    status: Literal["IN_REVIEW", "VALIDATED", "REJECTED", "ISSUED"]
+    reason: str = Field(default="", max_length=500)
+
+
+class CinEvidenceUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    has_birth_certificate: bool
+    has_residence_proof: bool
+    photos_count: int = Field(ge=0, le=8)
 
 
 class UserCreate(BaseModel):
@@ -68,7 +90,7 @@ class CitizenCreate(BaseModel):
     @field_validator("birth_date")
     @classmethod
     def check_birth_date(cls, value: date) -> date:
-        if value > date.today() or value.year < 1900:
+        if value > _today_in_antananarivo() or value.year < 1900:
             raise ValueError("Date de naissance non valide")
         return value
 

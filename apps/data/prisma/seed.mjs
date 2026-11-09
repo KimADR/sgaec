@@ -35,7 +35,7 @@ const tenants = [
 
 const permissions = [
   'dashboard:read', 'citizens:read', 'citizens:manage', 'births:read', 'births:create',
-  'births:workflow', 'cin:read', 'cin:create', 'documents:preview',
+  'births:workflow', 'cin:read', 'cin:create', 'cin:workflow', 'documents:preview',
   'documents:deliver', 'users:manage',
 ];
 const roleDefinitions = [
@@ -44,7 +44,7 @@ const roleDefinitions = [
     'dashboard:read', 'citizens:read', 'citizens:manage', 'births:read', 'births:create', 'cin:read', 'cin:create',
   ] },
   { code: 'VALIDATEUR', name: 'Validateur', permissions: [
-    'dashboard:read', 'citizens:read', 'births:read', 'births:workflow', 'documents:preview', 'documents:deliver',
+    'dashboard:read', 'citizens:read', 'births:read', 'births:workflow', 'cin:read', 'cin:workflow', 'documents:preview', 'documents:deliver',
   ] },
   { code: 'LECTURE_SEULE', name: 'Lecture seule', permissions: [
     'dashboard:read', 'citizens:read', 'births:read', 'cin:read', 'documents:preview',

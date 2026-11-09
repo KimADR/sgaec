@@ -3,6 +3,9 @@ import { randomBytes, scrypt as scryptCallback, timingSafeEqual } from 'node:cry
 import { promisify } from 'node:util';
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
+import { pageResult, parsePagination } from './pagination.mjs';
+import { reportPeriod, summarizeWorkflowCounts } from './reporting.mjs';
+import { CIN_TRANSITIONS, checkCinTransition, requestScopeFilter, canEditCinEvidence } from './workflow.mjs';
 
 const scrypt = promisify(scryptCallback);
 
@@ -39,6 +42,7 @@ const permissionDescription = {
   'births:workflow': 'Instruire et valider une déclaration de naissance',
   'cin:read': 'Consulter les dossiers CIN',
   'cin:create': 'Créer un dossier CIN',
+  'cin:workflow': 'Instruire, valider ou rejeter un dossier CIN',
   'documents:preview': 'Prévisualiser un document spécimen',
   'documents:deliver': 'Enregistrer la délivrance d’un document',
   'users:manage': 'Gérer les utilisateurs de la commune',
@@ -86,13 +90,13 @@ const cinJson = (r) => ({
   profession: r.profession || '', father_name: r.fatherName || '',
   mother_name: r.motherName || '', has_birth_certificate: r.hasBirthCertificate,
   has_residence_proof: r.hasResidenceProof, photos_count: r.photosCount,
-  status: r.status, created_at: r.createdAt.toISOString(),
+  status: r.status, created_at: r.createdAt.toISOString(), updated_at: r.updatedAt.toISOString(),
   commune: r.commune, centre: r.centre,
 });
 
 const safeQuery = (query) => typeof query === 'string' ? query.trim().slice(0, 80) : '';
 const makeDemoNumber = (prefix) => `${prefix}-DEMO-${new Date().getUTCFullYear()}-${randomBytes(4).toString('hex').toUpperCase()}`;
-const recordLimit = 100;
+const workflowStatuses = new Set(['REGISTERED', 'IN_REVIEW', 'VALIDATED', 'ISSUED', 'REJECTED']);
 const dummySalt = Buffer.alloc(16, 0x53);
 const dummyHash = Buffer.alloc(64, 0x41);
 const assignableRoles = new Set(['COMMUNE_ADMIN', 'AGENT_SAISIE', 'VALIDATEUR', 'LECTURE_SEULE']);
@@ -111,6 +115,16 @@ async function hashPassword(password) {
   const salt = randomBytes(16);
   const hash = await scrypt(password, salt, 64);
   return `scrypt$${salt.toString('hex')}$${hash.toString('hex')}`;
+}
+
+function statusFilter(value) {
+  const status = value ?? '';
+  if (typeof status !== 'string' || (status !== '' && !workflowStatuses.has(status))) {
+    const error = new Error('Statut de dossier invalide.');
+    error.status = 422;
+    throw error;
+  }
+  return status ? { status } : {};
 }
 
 async function scoped(req, res, permission, callback) {
@@ -146,7 +160,8 @@ async function scoped(req, res, permission, callback) {
       !item.centreEtatCivilId || activeCentreIds.has(item.centreEtatCivilId));
     const permissions = new Set(scopedAssignments.flatMap((item) =>
       item.role.permissions.map((itemPermission) => itemPermission.permission.code)));
-    if (!commune || !scopedAssignments.length || !permissions.has(permission)) {
+    const requiredPermissions = Array.isArray(permission) ? permission : [permission];
+    if (!commune || !scopedAssignments.length || !requiredPermissions.some((item) => permissions.has(item))) {
       const error = new Error('Affectation ou permission territoriale insuffisante');
       error.status = 403;
       throw error;
@@ -274,11 +289,16 @@ app.post('/internal/auth/login', async (req, res, next) => {
         name: tenant.commune.name,
         centres: [],
         roles: [],
+        permissions: [],
       };
       if (assignment.centreEtatCivilId && !item.centres.includes(assignment.centreEtatCivilId)) {
         item.centres.push(assignment.centreEtatCivilId);
       }
       if (!item.roles.includes(assignment.role.code)) item.roles.push(assignment.role.code);
+      for (const rolePermission of assignment.role.permissions) {
+        const code = rolePermission.permission.code;
+        if (!item.permissions.includes(code)) item.permissions.push(code);
+      }
       communeMap.set(assignment.communeId, item);
     }
     if (!communeMap.size) {
@@ -444,21 +464,27 @@ app.get('/internal/summary', async (req, res, next) => {
   try {
     await scoped(req, res, 'dashboard:read', async (tx, context) => {
       const where = territoryWhere(context);
+      const canReadCitizens = context.permissions.has('citizens:read');
+      const canReadBirths = context.permissions.has('births:read');
+      const canReadCin = context.permissions.has('cin:read');
+      const canDeliverDocuments = context.permissions.has('documents:deliver');
       const [citizens, declarations, validatedActs, documentsDelivered, births, cinCases,
-        lastBirths, lastCin] = await Promise.all([
-        tx.citizen.count({ where: { ...where, active: true } }),
-        tx.birthDeclaration.count({ where }),
-        tx.birthRecord.count({ where: { ...where, status: { in: ['VALIDATED', 'ISSUED'] } } }),
-        tx.documentDelivery.count({ where }),
-        tx.birthRecord.count({ where }),
-        tx.cinApplication.count({ where }),
-        tx.birthRecord.findMany({
+        activeBirths, activeCin, lastBirths, lastCin] = await Promise.all([
+        canReadCitizens ? tx.citizen.count({ where: { ...where, active: true } }) : 0,
+        canReadBirths ? tx.birthDeclaration.count({ where }) : 0,
+        canReadBirths ? tx.birthRecord.count({ where: { ...where, status: { in: ['VALIDATED', 'ISSUED'] } } }) : 0,
+        canDeliverDocuments ? tx.documentDelivery.count({ where }) : 0,
+        canReadBirths ? tx.birthRecord.count({ where }) : 0,
+        canReadCin ? tx.cinApplication.count({ where }) : 0,
+        canReadBirths ? tx.birthRecord.count({ where: { ...where, status: { in: ['REGISTERED', 'IN_REVIEW', 'VALIDATED'] } } }) : 0,
+        canReadCin ? tx.cinApplication.count({ where: { ...where, status: { in: ['REGISTERED', 'IN_REVIEW', 'VALIDATED'] } } }) : 0,
+        canReadBirths ? tx.birthRecord.findMany({
           where, include: birthInclude, orderBy: { createdAt: 'desc' }, take: 5,
-        }),
-        tx.cinApplication.findMany({
+        }) : [],
+        canReadCin ? tx.cinApplication.findMany({
           where, include: { commune: true, centre: true },
           orderBy: { createdAt: 'desc' }, take: 5,
-        }),
+        }) : [],
       ]);
       const recent = [
         ...lastBirths.map((record) => ({
@@ -474,9 +500,34 @@ app.get('/internal/summary', async (req, res, next) => {
       ].sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 6);
       return {
         citizens, declarations, validated_acts: validatedActs, documents_delivered: documentsDelivered,
-        births, cin_cases: cinCases, pending: Math.max(declarations - validatedActs, 0),
+        births, cin_cases: cinCases, pending: activeBirths + activeCin,
         delivered: documentsDelivered, recent,
       };
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get('/internal/reports', async (req, res, next) => {
+  try {
+    await scoped(req, res, 'dashboard:read', async (tx, context) => {
+      let period;
+      try {
+        period = reportPeriod(req.query.start_date, req.query.end_date);
+      } catch (error) {
+        error.status = 422;
+        throw error;
+      }
+      const where = {
+        ...territoryWhere(context),
+        createdAt: { gte: period.startAt, lt: period.endExclusive },
+      };
+      const [birthGroups, cinGroups] = await Promise.all([
+        tx.birthRecord.groupBy({ by: ['status'], where, _count: { _all: true } }),
+        tx.cinApplication.groupBy({ by: ['status'], where, _count: { _all: true } }),
+      ]);
+      return summarizeWorkflowCounts(birthGroups, cinGroups, period);
     });
   } catch (error) {
     next(error);
@@ -487,21 +538,27 @@ app.get('/internal/citizens', async (req, res, next) => {
   try {
     await scoped(req, res, 'citizens:read', async (tx, context) => {
       const q = safeQuery(req.query.q);
-      const rows = await tx.citizen.findMany({
-        where: {
-          ...territoryWhere(context),
-          active: true,
-          ...(q ? { OR: [
-            { lastName: { contains: q, mode: 'insensitive' } },
-            { firstNames: { contains: q, mode: 'insensitive' } },
-            { birthPlace: { contains: q, mode: 'insensitive' } },
-          ] } : {}),
-        },
-        include: citizenInclude,
-        orderBy: [{ lastName: 'asc' }, { firstNames: 'asc' }],
-        take: recordLimit,
-      });
-      return rows.map(citizenJson);
+      const pagination = parsePagination(req.query);
+      const where = {
+        ...territoryWhere(context),
+        active: true,
+        ...(q ? { OR: [
+          { lastName: { contains: q, mode: 'insensitive' } },
+          { firstNames: { contains: q, mode: 'insensitive' } },
+          { birthPlace: { contains: q, mode: 'insensitive' } },
+        ] } : {}),
+      };
+      const [total, rows] = await Promise.all([
+        tx.citizen.count({ where }),
+        tx.citizen.findMany({
+          where,
+          include: citizenInclude,
+          orderBy: [{ lastName: 'asc' }, { firstNames: 'asc' }, { id: 'asc' }],
+          skip: pagination.skip,
+          take: pagination.take,
+        }),
+      ]);
+      return pageResult(rows.map(citizenJson), total, pagination);
     });
   } catch (error) {
     next(error);
@@ -629,20 +686,28 @@ app.get('/internal/births', async (req, res, next) => {
   try {
     await scoped(req, res, 'births:read', async (tx, context) => {
       const q = safeQuery(req.query.q);
-      const rows = await tx.birthRecord.findMany({
-        where: {
-          ...territoryWhere(context),
-          ...(q ? { OR: [
-            { lastName: { contains: q, mode: 'insensitive' } },
-            { firstNames: { contains: q, mode: 'insensitive' } },
-            { recordNumber: { contains: q, mode: 'insensitive' } },
-          ] } : {}),
-        },
-        include: birthInclude,
-        orderBy: { createdAt: 'desc' },
-        take: recordLimit,
-      });
-      return rows.map(birthJson);
+      const selectedStatus = statusFilter(req.query.status);
+      const pagination = parsePagination(req.query);
+      const where = {
+        ...territoryWhere(context),
+        ...selectedStatus,
+        ...(q ? { OR: [
+          { lastName: { contains: q, mode: 'insensitive' } },
+          { firstNames: { contains: q, mode: 'insensitive' } },
+          { recordNumber: { contains: q, mode: 'insensitive' } },
+        ] } : {}),
+      };
+      const [total, rows] = await Promise.all([
+        tx.birthRecord.count({ where }),
+        tx.birthRecord.findMany({
+          where,
+          include: birthInclude,
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+          skip: pagination.skip,
+          take: pagination.take,
+        }),
+      ]);
+      return pageResult(rows.map(birthJson), total, pagination);
     });
   } catch (error) {
     next(error);
@@ -697,7 +762,7 @@ app.post('/internal/births', async (req, res, next) => {
         lastName: body.last_name, firstNames: body.first_names,
         sex: body.sex === 'M' ? 'MALE' : 'FEMALE',
         birthDate: citizen.birthDate, nationality: body.nationality,
-        district: body.district, municipality: centre.name,
+        district: body.district, municipality: context.commune.name,
         placeOfBirth: body.place_of_birth,
         fatherName: body.father_name || null, motherName: body.mother_name || null,
         address: body.address || null, declarantName: body.declarant_name || null,
@@ -726,6 +791,9 @@ app.post('/internal/births/:id/transition', async (req, res, next) => {
     };
     const transition = transitions[req.body?.status];
     if (!transition) return res.status(422).json({ detail: 'Transition de workflow non autorisée' });
+    if (req.body.status === 'REJECTED' && (typeof req.body.reason !== 'string' || req.body.reason.trim().length < 5)) {
+      return res.status(422).json({ detail: 'Le motif du rejet doit contenir au moins 5 caractères.' });
+    }
     const result = await scoped(req, res, transition.permission, async (tx, context) => {
       const record = await tx.birthRecord.findFirst({
         where: { id: req.params.id, ...territoryWhere(context) },
@@ -795,19 +863,104 @@ app.get('/internal/cin', async (req, res, next) => {
   try {
     await scoped(req, res, 'cin:read', async (tx, context) => {
       const q = safeQuery(req.query.q);
-      const rows = await tx.cinApplication.findMany({
-        where: {
-          communeId: context.communeId,
-          ...(q ? { OR: [
-            { lastName: { contains: q, mode: 'insensitive' } },
-            { firstNames: { contains: q, mode: 'insensitive' } },
-            { fileNumber: { contains: q, mode: 'insensitive' } },
-          ] } : {}),
-        },
-        include: { commune: true, centre: true },
-        orderBy: { createdAt: 'desc' }, take: recordLimit,
-      });
-      return rows.map(cinJson);
+      const selectedStatus = statusFilter(req.query.status);
+      const pagination = parsePagination(req.query);
+      const where = {
+        ...territoryWhere(context),
+        ...selectedStatus,
+        ...(q ? { OR: [
+          { lastName: { contains: q, mode: 'insensitive' } },
+          { firstNames: { contains: q, mode: 'insensitive' } },
+          { fileNumber: { contains: q, mode: 'insensitive' } },
+        ] } : {}),
+      };
+      const [total, rows] = await Promise.all([
+        tx.cinApplication.count({ where }),
+        tx.cinApplication.findMany({
+          where,
+          include: { commune: true, centre: true },
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+          skip: pagination.skip,
+          take: pagination.take,
+        }),
+      ]);
+      return pageResult(rows.map(cinJson), total, pagination);
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get('/internal/requests', async (req, res, next) => {
+  try {
+    await scoped(req, res, ['births:read', 'cin:read'], async (tx, context) => {
+      const q = safeQuery(req.query.q);
+      const type = req.query.type ?? 'all';
+      const status = req.query.status ?? '';
+      const allowedTypes = new Set(['all', 'births', 'cin']);
+      if (typeof type !== 'string' || !allowedTypes.has(type)) {
+        const error = new Error('Type de demande invalide.');
+        error.status = 422;
+        throw error;
+      }
+      const selectedStatus = requestScopeFilter(req.query.scope ?? 'all', status);
+      const pagination = parsePagination(req.query);
+      const canReadBirths = context.permissions.has('births:read') && type !== 'cin';
+      const canReadCin = context.permissions.has('cin:read') && type !== 'births';
+      const birthWhere = {
+        ...territoryWhere(context),
+        ...selectedStatus,
+        ...(q ? { OR: [
+          { lastName: { contains: q, mode: 'insensitive' } },
+          { firstNames: { contains: q, mode: 'insensitive' } },
+          { recordNumber: { contains: q, mode: 'insensitive' } },
+        ] } : {}),
+      };
+      const cinWhere = {
+        ...territoryWhere(context),
+        ...selectedStatus,
+        ...(q ? { OR: [
+          { lastName: { contains: q, mode: 'insensitive' } },
+          { firstNames: { contains: q, mode: 'insensitive' } },
+          { fileNumber: { contains: q, mode: 'insensitive' } },
+        ] } : {}),
+      };
+      const take = pagination.skip + pagination.take;
+      const [birthCount, cinCount, births, cinRows] = await Promise.all([
+        canReadBirths ? tx.birthRecord.count({ where: birthWhere }) : 0,
+        canReadCin ? tx.cinApplication.count({ where: cinWhere }) : 0,
+        canReadBirths ? tx.birthRecord.findMany({
+          where: birthWhere, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+          take, include: birthInclude,
+        }) : [],
+        canReadCin ? tx.cinApplication.findMany({
+          where: cinWhere, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+          take, include: { commune: true, centre: true },
+        }) : [],
+      ]);
+      const items = [
+        ...births.map((record) => ({
+          id: record.id,
+          number: record.recordNumber,
+          type: 'Naissance',
+          citizen: `${record.lastName} ${record.firstNames}`,
+          status: record.status,
+          created_at: record.createdAt.toISOString(),
+          url: `/naissances/${record.id}`,
+        })),
+        ...cinRows.map((record) => ({
+          id: record.id,
+          number: record.fileNumber,
+          type: 'CIN',
+          citizen: `${record.lastName} ${record.firstNames}`,
+          status: record.status,
+          created_at: record.createdAt.toISOString(),
+          url: `/cin/${record.id}`,
+        })),
+      ].sort((left, right) =>
+        right.created_at.localeCompare(left.created_at) || right.id.localeCompare(left.id))
+        .slice(pagination.skip, pagination.skip + pagination.take);
+      return pageResult(items, birthCount + cinCount, pagination);
     });
   } catch (error) {
     next(error);
@@ -940,6 +1093,138 @@ app.get('/internal/documents/export', async (req, res, next) => {
         births: births.map(birthJson),
         cin: cinCases.map(cinJson),
       };
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.put('/internal/cin/:id/evidence', async (req, res, next) => {
+  try {
+    const body = req.body;
+    if (typeof body?.has_birth_certificate !== 'boolean'
+      || typeof body?.has_residence_proof !== 'boolean'
+      || !Number.isInteger(body?.photos_count)
+      || body.photos_count < 0 || body.photos_count > 8) {
+      return res.status(422).json({ detail: 'Pièces déclarées invalides.' });
+    }
+    const result = await scoped(req, res, ['cin:create', 'cin:workflow'], async (tx, context) => {
+      const record = await tx.cinApplication.findFirst({
+        where: { id: req.params.id, ...territoryWhere(context) },
+      });
+      if (!record) {
+        const error = new Error('Dossier CIN introuvable.');
+        error.status = 404;
+        throw error;
+      }
+      if (!canEditCinEvidence(record.status)) {
+        const error = new Error('Les justificatifs ne peuvent plus être modifiés après validation ou clôture.');
+        error.status = 409;
+        throw error;
+      }
+      const data = {
+        hasBirthCertificate: body.has_birth_certificate,
+        hasResidenceProof: body.has_residence_proof,
+        photosCount: body.photos_count,
+      };
+      const updatedCount = await tx.cinApplication.updateMany({
+        where: { id: record.id, ...territoryWhere(context), status: record.status, updatedAt: record.updatedAt },
+        data,
+      });
+      if (updatedCount.count !== 1) {
+        const error = new Error('Dossier modifié simultanément : rechargez la fiche.');
+        error.status = 409;
+        throw error;
+      }
+      await tx.auditEvent.create({ data: {
+        communeId: context.communeId, actorId: context.userId, actor: context.userId,
+        action: 'CIN_EVIDENCE_UPDATED', resourceType: 'CinApplication', resourceId: record.id,
+        details: {
+          has_birth_certificate: data.hasBirthCertificate,
+          has_residence_proof: data.hasResidenceProof,
+          photos_count: data.photosCount,
+        },
+      } });
+      return cinJson(await tx.cinApplication.findFirst({
+        where: { id: record.id, ...territoryWhere(context) },
+        include: { commune: true, centre: true },
+      }));
+    });
+    if (!res.headersSent) res.json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post('/internal/cin/:id/transition', async (req, res, next) => {
+  try {
+    const target = req.body?.status;
+    const rule = CIN_TRANSITIONS[target];
+    if (!rule) return res.status(422).json({ detail: 'Transition CIN inconnue.' });
+    const result = await scoped(req, res, rule.permission, async (tx, context) => {
+      const record = await tx.cinApplication.findFirst({
+        where: { id: req.params.id, ...territoryWhere(context) },
+      });
+      if (!record) {
+        const error = new Error('Dossier CIN introuvable.');
+        error.status = 404;
+        throw error;
+      }
+      const reason = typeof req.body?.reason === 'string' ? req.body.reason.trim() : '';
+      checkCinTransition(record, target, reason);
+      const changed = await tx.cinApplication.updateMany({
+        where: { id: record.id, ...territoryWhere(context), status: record.status, updatedAt: record.updatedAt },
+        data: { status: target },
+      });
+      if (changed.count !== 1) {
+        const error = new Error('Le statut a changé. Rechargez le dossier.');
+        error.status = 409;
+        throw error;
+      }
+      await tx.auditEvent.create({ data: {
+        communeId: context.communeId, actorId: context.userId, actor: context.userId,
+        action: `CIN_${target}`, resourceType: 'CinApplication', resourceId: record.id,
+        details: { from: record.status, to: target, ...(reason ? { reason } : {}) },
+      } });
+      const updated = await tx.cinApplication.findFirst({
+        where: { id: record.id, ...territoryWhere(context) },
+        include: { commune: true, centre: true },
+      });
+      return cinJson(updated);
+    });
+    if (!res.headersSent) res.json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get('/internal/cin/:id/history', async (req, res, next) => {
+  try {
+    await scoped(req, res, 'cin:read', async (tx, context) => {
+      const record = await tx.cinApplication.findFirst({
+        where: { id: req.params.id, ...territoryWhere(context) },
+        select: { id: true },
+      });
+      if (!record) {
+        const error = new Error('Dossier CIN introuvable.');
+        error.status = 404;
+        throw error;
+      }
+      const events = await tx.auditEvent.findMany({
+        where: { communeId: context.communeId, resourceType: 'CinApplication', resourceId: record.id },
+        orderBy: { createdAt: 'desc' },
+        take: 40,
+        include: { utilisateur: { select: { fullName: true } } },
+      });
+      return events.map(event => ({
+        id: event.id,
+        action: event.action,
+        actor: event.utilisateur?.fullName ?? 'Agent habilité',
+        created_at: event.createdAt.toISOString(),
+        from_status: event.details?.from ?? null,
+        to_status: event.details?.to ?? null,
+        reason: event.details?.reason ?? null,
+      }));
     });
   } catch (error) {
     next(error);

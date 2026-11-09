@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from 'react';
 import type { CitizenInput } from '@/lib/types';
+import { todayInAntananarivo } from '@/lib/format';
 
 type CitizenFormProps = {
   initial: CitizenInput;
@@ -32,38 +33,40 @@ export default function CitizenForm({ initial, submitLabel, onSubmit, onCancel }
     }
   }
 
-  return <form className="form-grid citizen-form" onSubmit={submit}>
-    <label className="field">Nom <b>*</b>
-      <input required minLength={2} maxLength={120} value={form.last_name}
+  const fieldClass = 'flex min-w-0 flex-col gap-2 text-sm font-semibold text-ink';
+  const inputClass = 'min-h-11 w-full rounded-lg border border-line bg-white px-3 py-2 text-sm font-normal text-ink shadow-sm outline-none transition placeholder:text-muted focus:border-blue focus:ring-2 focus:ring-blue/20';
+  return <form className="grid grid-cols-1 gap-5 p-5 sm:grid-cols-2" onSubmit={submit}>
+    <label className={fieldClass}><span>Nom <b className="text-red-600">*</b></span>
+      <input className={inputClass} required minLength={2} maxLength={120} value={form.last_name}
         onChange={event => update('last_name', event.target.value)} />
     </label>
-    <label className="field">Prénom(s) <b>*</b>
-      <input required minLength={2} maxLength={160} value={form.first_names}
+    <label className={fieldClass}><span>Prénom(s) <b className="text-red-600">*</b></span>
+      <input className={inputClass} required minLength={2} maxLength={160} value={form.first_names}
         onChange={event => update('first_names', event.target.value)} />
     </label>
-    <fieldset className="field citizen-sex">
-      <legend>Sexe <b>*</b></legend>
-      <div className="radio-row">
+    <fieldset className={`${fieldClass} min-w-0 border-0 p-0`}>
+      <legend>Sexe <b className="text-red-600">*</b></legend>
+      <div className="flex min-h-11 flex-wrap items-center gap-x-6 gap-y-3">
         <label><input type="radio" name="sex" checked={form.sex === 'M'} onChange={() => update('sex', 'M')}/> Masculin</label>
         <label><input type="radio" name="sex" checked={form.sex === 'F'} onChange={() => update('sex', 'F')}/> Féminin</label>
       </div>
     </fieldset>
-    <label className="field">Date de naissance <b>*</b>
-      <input required type="date" min="1900-01-01" max={new Date().toISOString().slice(0, 10)}
+    <label className={fieldClass}><span>Date de naissance <b className="text-red-600">*</b></span>
+      <input className={inputClass} required type="date" min="1900-01-01" max={todayInAntananarivo()}
         value={form.birth_date} onChange={event => update('birth_date', event.target.value)} />
     </label>
-    <label className="field">Nationalité <b>*</b>
-      <input required minLength={2} maxLength={80} value={form.nationality}
+    <label className={fieldClass}><span>Nationalité <b className="text-red-600">*</b></span>
+      <input className={inputClass} required minLength={2} maxLength={80} value={form.nationality}
         onChange={event => update('nationality', event.target.value)} />
     </label>
-    <label className="field">Lieu de naissance <b>*</b>
-      <input required minLength={2} maxLength={160} value={form.birth_place}
+    <label className={fieldClass}><span>Lieu de naissance <b className="text-red-600">*</b></span>
+      <input className={inputClass} required minLength={2} maxLength={160} value={form.birth_place}
         onChange={event => update('birth_place', event.target.value)} />
     </label>
-    {error && <div className="alert-error citizen-form-error" role="alert">{error}</div>}
-    <div className="form-actions citizen-form-actions">
-      <button className="outline-button" type="button" onClick={onCancel} disabled={saving}>Annuler</button>
-      <button className="primary-button" type="submit" disabled={saving}>{saving ? 'Enregistrement…' : submitLabel}</button>
+    {error && <div className="col-span-full rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800" role="alert">{error}</div>}
+    <div className="col-span-full flex flex-wrap justify-end gap-3 border-t border-line pt-4">
+      <button className="inline-flex min-h-11 items-center justify-center rounded-lg border border-line bg-white px-4 text-sm font-semibold text-navy-2 transition hover:bg-slate-50 disabled:opacity-50" type="button" onClick={onCancel} disabled={saving}>Annuler</button>
+      <button className="inline-flex min-h-11 items-center justify-center rounded-lg bg-blue px-4 text-sm font-semibold text-white transition hover:bg-blue-dark disabled:cursor-not-allowed disabled:opacity-50" type="submit" disabled={saving}>{saving ? 'Enregistrement…' : submitLabel}</button>
     </div>
   </form>;
 }
