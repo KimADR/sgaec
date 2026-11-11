@@ -11,17 +11,17 @@ export default function CitizenCard({ citizen }: { citizen: Citizen }) {
   const fullName = `${citizen.last_name} ${citizen.first_names}`;
 
   return (
-    <article className="flex min-w-0 flex-col gap-5 rounded-2xl border border-line bg-white p-5 shadow-sm transition-shadow hover:shadow-md">
+    <article className="flex min-w-0 flex-col gap-3 rounded-lg border border-line bg-white p-4 shadow-sm">
       <div className="flex min-w-0 items-start gap-3">
         <div
           aria-hidden="true"
-          className="grid size-12 shrink-0 place-items-center rounded-full bg-sky-100 text-sm font-bold text-navy"
+          className="grid size-10 shrink-0 place-items-center rounded-full bg-sky text-sm font-bold text-navy"
         >
           {initials(citizen)}
         </div>
         <div className="min-w-0 flex-1">
-          <h3 className="break-words text-base font-semibold leading-6 text-ink">{fullName}</h3>
-          <span className={`mt-2 inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${
+          <h3 className="break-words text-sm font-semibold leading-5 text-ink">{fullName}</h3>
+          <span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium ${
             citizen.active
               ? 'bg-emerald-50 text-emerald-800'
               : 'bg-slate-100 text-slate-700'
@@ -31,7 +31,7 @@ export default function CitizenCard({ citizen }: { citizen: Citizen }) {
         </div>
       </div>
 
-      <dl className="grid gap-3 text-sm text-muted">
+      <dl className="grid gap-2 text-sm text-muted">
         <div className="flex min-w-0 items-start gap-2">
           <CalendarDays aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-navy" />
           <div className="min-w-0">
@@ -48,7 +48,7 @@ export default function CitizenCard({ citizen }: { citizen: Citizen }) {
         </div>
       </dl>
 
-      <div className="mt-auto flex flex-col gap-3 border-t border-line pt-4 text-sm lg:flex-row lg:items-center lg:justify-between">
+      <div className="mt-auto flex flex-col gap-2 border-t border-line pt-3 text-sm">
         <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-muted">
           <FileText aria-hidden="true" className="size-4 shrink-0 text-navy" />
           <span className="min-w-0 break-words font-medium text-ink">{citizen.centre.name}</span>

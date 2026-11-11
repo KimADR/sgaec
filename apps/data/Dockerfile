@@ -3,9 +3,13 @@ WORKDIR /app
 ENV NODE_ENV=production
 RUN apt-get update && apt-get install -y --no-install-recommends openssl \
   && rm -rf /var/lib/apt/lists/*
-COPY package.json ./
+COPY package*.json ./
 # Prisma CLI is used only by the explicit maintenance service.
-RUN npm install --include=dev --no-audit --no-fund
+RUN if [ -f package-lock.json ]; then \
+      npm ci --include=dev --no-audit --no-fund; \
+    else \
+      npm install --include=dev --no-audit --no-fund; \
+    fi
 COPY prisma.config.ts ./
 COPY prisma ./prisma
 RUN DATABASE_URL="postgresql://127.0.0.1:5432/build?schema=sgaec" npx prisma generate

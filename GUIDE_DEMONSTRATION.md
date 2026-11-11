@@ -9,30 +9,43 @@ Prérequis : Docker Desktop avec Docker Compose, PowerShell et une connexion Int
 Depuis `SGAEC_starter` :
 
 ```powershell
-Copy-Item .env.demo.example .env.demo
+powershell -ExecutionPolicy Bypass -File .\scripts\start_demo.ps1
 ```
 
-Dans `.env.demo`, remplacez chaque valeur `replace-with-...` par une valeur aléatoire locale. Le mot de passe PostgreSQL doit être composé uniquement de caractères hexadécimaux et être identique dans `POSTGRES_PASSWORD` et dans le mot de passe de `DATABASE_URL`. Gardez `.env.demo` privé : il est ignoré par Git et exclu de l’archive de livraison.
+Le script vérifie Docker et la configuration, crée `.env.demo.maire` uniquement
+s'il est absent, applique les migrations et amorce les données fictives. Le
+fichier `.env` et l'ancien `.env.demo` restent inchangés. Cette instance utilise
+le projet et le volume Docker `sgaec-demo-maire`, distincts des volumes existants.
+Le script ne réinitialise pas de base et ne supprime aucun volume. Pour préparer
+les secrets séparément ou démarrer manuellement :
+
+```powershell
+py -3 .\scripts\prepare_demo.py --target .env.demo.maire
+```
+
+Le script génère des secrets distincts pour le propriétaire PostgreSQL et le rôle applicatif, et ne remplace jamais un fichier existant. Gardez `.env.demo.maire` privé : il est ignoré par Git.
 
 Le compte amorcé par le seed est `demo.admin` (rôle **Administrateur communal**, affecté aux trois communes fictives A, B et à la commune historique de démonstration). Son mot de passe est la valeur locale de `BOOTSTRAP_ADMIN_PASSWORD` ; aucun mot de passe par défaut n’est fourni ni distribué.
 
 ## Construire et démarrer
 
-Cette procédure est réservée au volume neuf `sgaec-demo-isolated_demo_pgdata`. La migration explicite est destinée à cette base de démonstration isolée ; ne la lancez pas contre la base externe de `compose.yaml`.
+Cette procédure utilise le volume propre `sgaec-demo-maire_demo_pgdata_restricted`. Elle ne réutilise ni ne supprime les autres volumes. L'initialisation du compte applicatif ne s'exécute que si ce volume est neuf. La migration explicite est destinée à cette base de démonstration isolée ; ne la lancez pas contre la base externe de `compose.yaml`.
 
 ```powershell
-docker compose --env-file .env.demo -f compose.demo.yaml build
-docker compose --env-file .env.demo -f compose.demo.yaml --profile maintenance run --rm migrate
-docker compose --env-file .env.demo -f compose.demo.yaml --profile maintenance run --rm seed
-docker compose --env-file .env.demo -f compose.demo.yaml up -d
-docker compose --env-file .env.demo -f compose.demo.yaml ps
-Invoke-WebRequest http://localhost:8000/health
-Invoke-WebRequest http://localhost:3000/connexion
+docker compose --env-file .env.demo.maire -f compose.demo.yaml build
+docker compose --env-file .env.demo.maire -f compose.demo.yaml up -d postgres
+docker compose --env-file .env.demo.maire -f compose.demo.yaml --profile maintenance run --rm migrate
+docker compose --env-file .env.demo.maire -f compose.demo.yaml --profile maintenance run --rm seed
+docker compose --env-file .env.demo.maire -f compose.demo.yaml up -d
+docker compose --env-file .env.demo.maire -f compose.demo.yaml ps
+py -3 .\scripts\verify_demo.py --env-file .env.demo.maire
 ```
 
 Ouvrez `http://localhost:3000`, connectez-vous avec le compte `demo.admin` et le mot de passe défini localement. `migrate` et `seed` sont des commandes explicites ; ils ne sont pas exécutés au démarrage normal des services.
 
-Les services ne publient que l’interface et l’API sur `localhost`. PostgreSQL reste sur un réseau Docker interne. La base et le volume de démonstration persistent après `docker compose down` ; cette commande n’efface pas les données. N’utilisez pas `docker compose down -v`.
+Les migrations s'exécutent avec le rôle propriétaire; le service data et le seed utilisent `sgaec_app`, sans privilèges de superutilisateur ni `BYPASSRLS`. Les services ne publient que l’interface et l’API sur `localhost`. PostgreSQL reste sur un réseau Docker interne. La base et le volume de démonstration persistent après `docker compose down` ; cette commande n’efface pas les données. N’utilisez pas `docker compose down -v`.
+
+Le script `verify_demo.py` réalise une recette HTTP après connexion ; l'authentification, la déconnexion et l'aperçu PDF peuvent ajouter des événements techniques/audit. Ne l'exécutez que sur la base de démonstration isolée, jamais sur une base existante contenant des données à préserver.
 
 ## Scénario de présentation
 

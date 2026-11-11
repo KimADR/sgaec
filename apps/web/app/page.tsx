@@ -2,12 +2,19 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ArrowRight, Baby, ClipboardList, FileText, IdCard, Plus, RefreshCw, UsersRound } from 'lucide-react';
+import {
+  Activity, ArrowRight, Baby, CheckCircle2, ClipboardList, FileText,
+  IdCard, Plus, RefreshCw, UsersRound,
+} from 'lucide-react';
 import { apiGet } from '@/lib/api';
 import { dateFr } from '@/lib/format';
-import type { DashboardData } from '@/lib/types';
+import type { DashboardData, RecentRequest } from '@/lib/types';
 import { Status } from '@/components/Status';
+import PageHeader from '@/components/PageHeader';
+import StatCard from '@/components/StatCard';
 import { useActiveCommune, useCan } from '@/components/AccessContext';
+
+const isOpenRequest = (item: RecentRequest) => item.status !== 'ISSUED' && item.status !== 'REJECTED';
 
 export default function Dashboard() {
   const commune = useActiveCommune();
@@ -20,6 +27,7 @@ export default function Dashboard() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [refresh, setRefresh] = useState(0);
+
   useEffect(() => {
     let active = true;
     setLoading(true);
@@ -29,60 +37,134 @@ export default function Dashboard() {
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [refresh]);
+
   const total = (data?.births ?? 0) + (data?.cin_cases ?? 0);
+  const openRequests = (data?.recent ?? []).filter(isOpenRequest).slice(0, 5);
+  const recentRequests = data?.recent ?? [];
   const metrics = [
-    { label: 'Citoyens actifs', value: data?.citizens, detail: 'Dans le répertoire communal', icon: UsersRound, href: '/citoyens', show: canReadCitizens },
-    { label: 'Dossiers en cours', value: data?.pending, detail: 'Enregistrés, instruits ou validés', icon: ClipboardList, href: '/demandes', show: canReadBirths || canReadCin },
-    { label: 'Dossiers de naissance', value: data?.births, detail: 'Enregistrements de naissance', icon: Baby, href: '/naissances', show: canReadBirths },
-    { label: 'Dossiers CIN', value: data?.cin_cases, detail: 'Demandes d’identité', icon: IdCard, href: '/cin', show: canReadCin },
+    { label: 'Citoyens actifs', value: data?.citizens, detail: 'Fiches de la commune active', icon: UsersRound, href: '/citoyens', show: canReadCitizens, tone: 'navy' as const },
+    { label: 'Dossiers à suivre', value: data?.pending, detail: 'Enregistrés, en instruction ou validés', icon: ClipboardList, href: '/demandes', show: canReadBirths || canReadCin, tone: 'amber' as const },
+    { label: 'Actes de naissance', value: data?.births, detail: 'Actes de la commune active', icon: Baby, href: '/naissances', show: canReadBirths, tone: 'blue' as const },
+    { label: 'Dossiers CIN', value: data?.cin_cases, detail: 'Demandes de la commune active', icon: IdCard, href: '/cin', show: canReadCin, tone: 'teal' as const },
   ].filter(metric => metric.show);
 
-  return <div className="flex flex-col gap-5">
-    <header className="flex flex-wrap items-start justify-between gap-3">
-      <div><p className="eyebrow">Vue d’ensemble <span className="px-2">/</span> {commune?.name ?? 'Commune active'}</p>
-        <h1 className="mt-2 text-2xl font-bold tracking-tight text-navy sm:text-3xl">Tableau de bord</h1>
-        <p className="mt-2 text-sm text-muted">Pilotage des registres et des demandes de votre périmètre.</p></div>
-      <button type="button" className="btn-secondary" onClick={() => setRefresh(value => value + 1)} disabled={loading}>
-        <RefreshCw size={16}/> Actualiser
-      </button>
-    </header>
-    <section className="dashboard-hero relative overflow-hidden rounded-2xl p-6 text-white sm:p-8">
-      <div className="relative z-10 max-w-2xl"><p className="mb-2 text-xs font-bold uppercase tracking-[0.16em] text-slate-300">Votre espace de travail</p><h2 className="m-0 text-2xl font-bold sm:text-3xl">Bienvenue dans votre espace SGAEC</h2>
-        <p className="mt-3 max-w-xl text-sm leading-6 text-slate-200">Consultez les dossiers et les indicateurs de votre commune, selon les droits associés à votre profil.</p>
-        <div className="mt-5 flex flex-wrap items-center gap-3">{canCreateBirth && <Link href="/naissances/nouveau" className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-white px-4 text-sm font-semibold text-navy hover:bg-slate-100"><Plus size={15}/> Nouvel acte de naissance</Link>}
-        {canCreateCin && <Link href="/cin/nouveau" className="inline-flex min-h-11 items-center gap-2 rounded-lg px-3 text-sm font-semibold text-white hover:bg-white/10">Nouveau dossier CIN <ArrowRight size={15}/></Link>}
-        {!canCreateBirth && !canCreateCin && (canReadBirths || canReadCin) && <Link className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-white px-4 text-sm font-semibold text-navy hover:bg-slate-100" href="/demandes">Consulter les demandes <ArrowRight size={16}/></Link>}
-        {!canCreateBirth && !canCreateCin && !canReadBirths && !canReadCin && <Link className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-white px-4 text-sm font-semibold text-navy hover:bg-slate-100" href="/rapports">Voir les statistiques <ArrowRight size={16}/></Link>}</div>
-      </div><div className="pointer-events-none absolute inset-y-0 right-0 hidden w-1/3 bg-[linear-gradient(90deg,#0b203a_0%,transparent_100%),url('/antananarivo-banner.jpg')] bg-cover bg-right opacity-40 lg:block" role="img" aria-label="Paysage d'Antananarivo"/>
-    </section>
+  return <div className="flex flex-col gap-7">
+    <PageHeader
+      eyebrow={`Pilotage administratif · ${commune?.name ?? 'Commune'}`}
+      title="Tableau de bord"
+      description="Une vue synthétique des dossiers et de l’activité de la commune active."
+      actions={<>
+        {canCreateBirth && <Link href="/naissances/nouveau" className="btn-secondary"><Plus size={16}/> Nouvel acte</Link>}
+        {canCreateCin && <Link href="/cin/nouveau" className="btn-primary"><Plus size={16}/> Nouveau dossier CIN</Link>}
+        <button type="button" className="btn-secondary" aria-label="Actualiser le tableau de bord" onClick={() => setRefresh(value => value + 1)} disabled={loading}>
+          <RefreshCw size={16} className={loading ? 'animate-spin' : ''}/> <span>Actualiser</span>
+        </button>
+      </>}
+    />
 
-    <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="Indicateurs clés">
-      {metrics.map(({ label, value, detail, icon: Icon, href }) => <Link key={label} href={href} className="metric-card group min-h-32 rounded-2xl border border-line bg-white p-5 transition hover:border-blue/30">
-        <span className="grid size-11 place-items-center rounded-xl bg-sky-50 text-blue"><Icon size={21}/></span>
-        <strong className="mt-4 block text-2xl font-bold tabular-nums text-navy">{loading ? '…' : value === undefined ? '—' : value.toLocaleString('fr-FR')}</strong>
-        <span className="mt-1 block text-sm font-semibold text-ink">{label}</span><small className="mt-2 block text-xs leading-5 text-muted">{detail}</small>
-      </Link>)}
-    </section>
-
-    {error && <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800" role="alert"><span>Impossible de charger les données : {error}.</span><button className="btn-secondary" type="button" onClick={() => setRefresh(value => value + 1)}>Réessayer</button></div>}
-
-    {(canReadBirths || canReadCin) && <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1.65fr)_minmax(280px,.85fr)]">
-      <section className="overflow-hidden rounded-2xl border border-line bg-white shadow-sm"><div className="flex items-center justify-between gap-3 border-b border-line px-5 py-4"><div><h3 className="m-0 text-base font-bold text-ink">Demandes récentes</h3><p className="mt-1 text-xs text-muted">Dernières opérations enregistrées</p></div><Link className="inline-flex items-center gap-1 text-sm font-semibold text-blue" href="/demandes">Tout voir <ArrowRight size={15}/></Link></div>
-        <div className="divide-y divide-line">
-          {data?.recent.map(item => <Link key={`${item.type}-${item.id}`} href={item.url} className="flex flex-wrap items-center gap-3 px-5 py-4 transition hover:bg-slate-50">
-            <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-sky-50 text-navy"><FileText size={18}/></span>
-            <span className="min-w-0 flex-1"><strong className="block break-words text-sm text-ink">{item.citizen}</strong><span className="mt-1 block text-xs text-muted">{item.type} · {item.number} · {dateFr(item.created_at)}</span></span><Status status={item.status} issuedLabel={item.type === 'CIN' ? 'Clôturé' : undefined}/><ArrowRight size={16} className="text-muted"/>
-          </Link>)}
-          {data && !data.recent.length && <p className="p-6 text-center text-sm text-muted">Aucune demande pour le moment. Créez un dossier depuis les actions rapides.</p>}
-          {loading && <p className="p-6 text-center text-sm text-muted" role="status">Chargement des demandes…</p>}
-        </div>
-      </section>
-      <section className="rounded-2xl border border-line bg-white shadow-sm"><div className="border-b border-line px-5 py-4"><h3 className="m-0 text-base font-bold text-ink">Demandes par type</h3><p className="mt-1 text-xs text-muted">Répartition des dossiers créés</p></div>
-        <div className="space-y-5 p-5"><div className="flex items-center gap-3"><span className="text-sm text-muted">Total observé</span><strong className="text-2xl font-bold text-ink">{data ? total.toLocaleString('fr-FR') : '—'}</strong></div>
-          {[{ label: 'Naissances', value: data?.births, color: 'bg-blue', visible: canReadBirths }, { label: 'CIN', value: data?.cin_cases, color: 'bg-cyan-500', visible: canReadCin }].filter(item => item.visible).map(item => <div key={item.label}><div className="mb-2 flex justify-between gap-3 text-sm"><span className="text-muted">{item.label}</span><strong className="text-ink">{item.value ?? '—'}</strong></div><div className="h-2 overflow-hidden rounded-full bg-slate-100"><div className={`h-full rounded-full ${item.color}`} style={{ width: `${total ? (item.value ?? 0) / total * 100 : 0}%` }}/></div></div>)}
-        </div>
-      </section>
+    {error && <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-900" role="alert">
+      <span>Impossible de charger les données : {error}.</span>
+      <button className="btn-secondary" type="button" onClick={() => setRefresh(value => value + 1)}>Réessayer</button>
     </div>}
-    <div className="flex items-start gap-2 rounded-xl border border-blue-100 bg-sky-50 p-4 text-sm leading-5 text-navy-2"><FileText size={16} className="mt-0.5 shrink-0"/><span>Il s'agit d'un prototype. Les documents de démonstration portent systématiquement un filigrane « Spécimen ».</span></div>
+
+    <section aria-label="Indicateurs clés">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div><h2 className="panel-title">Indicateurs clés</h2><p className="mt-1 text-xs text-muted">Données disponibles pour le périmètre sélectionné</p></div>
+        {loading && <span className="inline-flex items-center gap-2 text-xs font-medium text-muted" role="status"><span className="size-2 animate-pulse rounded-full bg-blue"/> Actualisation</span>}
+      </div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 2xl:grid-cols-4">
+        {metrics.map(({ label, value, detail, icon, href, tone }) => <StatCard
+          key={label}
+          label={label}
+          value={loading ? '…' : value === undefined ? '—' : value.toLocaleString('fr-FR')}
+          detail={detail}
+          icon={icon}
+          href={href}
+          tone={tone}
+        />)}
+      </div>
+    </section>
+
+    <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,.85fr)]">
+      <section className="surface min-w-0 overflow-hidden" aria-busy={loading}>
+        <div className="panel-heading">
+          <div className="flex items-center gap-3">
+            <span className="icon-tile"><Activity size={19}/></span>
+            <div><h2 className="panel-title">Activité récente</h2><p className="mt-1 text-xs text-muted">Ouverture directe des dernières opérations</p></div>
+          </div>
+          <Link className="inline-flex min-h-9 shrink-0 items-center gap-1 rounded-lg px-2 text-sm font-semibold text-blue hover:bg-sky" href="/demandes">Tous les dossiers <ArrowRight size={15}/></Link>
+        </div>
+        {loading && !data ? <div className="space-y-3 p-5" role="status"><div className="h-14 animate-pulse rounded-lg bg-slate-100"/><div className="h-14 animate-pulse rounded-lg bg-slate-100"/><span className="sr-only">Chargement de l’activité…</span></div>
+          : recentRequests.length ? <div className="divide-y divide-line">
+            {recentRequests.slice(0, 7).map(item => <Link key={`${item.type}-${item.id}`} href={item.url} className="group flex min-w-0 items-center gap-3 px-5 py-3.5 transition-colors hover:bg-slate-50">
+              <span className="grid size-9 shrink-0 place-items-center rounded-lg border border-line bg-white text-navy-2"><FileText size={17}/></span>
+              <span className="min-w-0 flex-1">
+                <strong className="block truncate text-sm font-semibold text-ink group-hover:text-blue">{item.citizen}</strong>
+                <span className="mt-1 block truncate text-xs text-muted">{item.type} <span aria-hidden="true">·</span> {item.number} <span aria-hidden="true">·</span> {dateFr(item.created_at)}</span>
+              </span>
+              <Status status={item.status} issuedLabel={item.type === 'CIN' ? 'Clôturé' : undefined}/>
+              <ArrowRight size={16} className="shrink-0 text-slate-400 transition-transform group-hover:translate-x-0.5 group-hover:text-blue"/>
+            </Link>)}
+          </div>
+          : <div className="flex flex-col items-center px-6 py-12 text-center" role="status">
+            <span className="icon-tile size-12"><FileText size={21}/></span>
+            <strong className="mt-3 text-sm font-semibold text-ink">Aucune activité récente</strong>
+            <p className="mt-1 max-w-sm text-sm text-muted">Les nouveaux dossiers apparaîtront ici après leur enregistrement.</p>
+          </div>}
+      </section>
+
+      <div className="flex min-w-0 flex-col gap-5">
+        <section className="surface overflow-hidden" aria-busy={loading}>
+          <div className="panel-heading">
+            <div className="flex items-center gap-3">
+              <span className="icon-tile border-amber-200 bg-amber-50 text-amber-800"><ClipboardList size={19}/></span>
+              <div><h2 className="panel-title">À suivre</h2><p className="mt-1 text-xs text-muted">Dossiers non clôturés récents</p></div>
+            </div>
+            <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-bold tabular-nums text-amber-900">{loading ? '…' : (data?.pending ?? 0).toLocaleString('fr-FR')}</span>
+          </div>
+          {loading && !data ? <p className="p-5 text-sm text-muted" role="status">Chargement des dossiers…</p>
+            : openRequests.length ? <div className="divide-y divide-line">
+              {openRequests.map(item => <Link key={`${item.type}-${item.id}`} href={item.url} className="group flex min-w-0 items-center gap-3 px-5 py-3 transition-colors hover:bg-slate-50">
+                <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-slate-100 text-navy-2"><FileText size={16}/></span>
+                <span className="min-w-0 flex-1"><strong className="block truncate text-sm font-semibold text-ink">{item.number}</strong><span className="mt-1 block truncate text-xs text-muted">{item.citizen}</span></span>
+                <Status status={item.status}/><ArrowRight size={15} className="shrink-0 text-slate-400 group-hover:text-blue"/>
+              </Link>)}
+            </div>
+            : <div className="flex flex-col items-center px-6 py-9 text-center" role="status">
+              <CheckCircle2 size={26} className="text-emerald-700"/>
+              <strong className="mt-2 text-sm font-semibold text-ink">Aucun dossier récent à traiter</strong>
+              <p className="mt-1 text-xs text-muted">{data?.pending ? 'Les dossiers plus anciens restent accessibles dans les demandes.' : 'La file de traitement est à jour.'}</p>
+            </div>}
+          <div className="border-t border-line bg-slate-50/70 px-5 py-3">
+            <Link href="/demandes" className="inline-flex min-h-8 items-center gap-1 text-xs font-bold text-blue hover:underline">Ouvrir la file complète <ArrowRight size={14}/></Link>
+          </div>
+        </section>
+
+        <section className="surface overflow-hidden">
+          <div className="panel-heading">
+            <div className="flex items-center gap-3">
+              <span className="icon-tile"><Activity size={19}/></span>
+              <div><h2 className="panel-title">Volume des dossiers</h2><p className="mt-1 text-xs text-muted">Répartition par module</p></div>
+            </div>
+            <span className="text-lg font-bold tabular-nums text-navy">{data ? total.toLocaleString('fr-FR') : '—'}</span>
+          </div>
+          <div className="space-y-5 p-5">
+            {[
+              { label: 'Naissances', value: data?.births, href: '/naissances', color: 'bg-blue', visible: canReadBirths },
+              { label: 'Dossiers CIN', value: data?.cin_cases, href: '/cin', color: 'bg-teal-700', visible: canReadCin },
+            ].filter(item => item.visible).map(item => <Link href={item.href} key={item.label} className="group block">
+              <div className="mb-2 flex items-center justify-between gap-3 text-sm"><span className="font-medium text-muted group-hover:text-blue">{item.label}</span><strong className="tabular-nums text-ink">{loading ? '…' : (item.value ?? 0).toLocaleString('fr-FR')}</strong></div>
+              <div className="h-2 overflow-hidden rounded-full bg-slate-100"><div className={`h-full rounded-full ${item.color} transition-[width]`} style={{ width: `${total ? Math.min((item.value ?? 0) / total * 100, 100) : 0}%` }}/></div>
+            </Link>)}
+            {!canReadBirths && !canReadCin && <p className="text-sm text-muted">Aucun module de dossier n’est autorisé pour ce profil.</p>}
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <div className="flex items-start gap-3 rounded-xl border border-blue-100 bg-sky px-4 py-3 text-sm leading-5 text-navy-2">
+      <FileText size={17} className="mt-0.5 shrink-0 text-blue"/>
+      <span>Prototype de démonstration. Les données sont fictives et les documents portent la mention « Spécimen — sans valeur officielle ».</span>
+    </div>
   </div>;
 }

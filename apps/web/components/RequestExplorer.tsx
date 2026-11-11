@@ -9,6 +9,7 @@ import { dateFr } from '@/lib/format';
 import type { PageResult, RecentRequest, WorkflowStatus } from '@/lib/types';
 import { Status } from '@/components/Status';
 import Pagination from '@/components/Pagination';
+import PageHeader from '@/components/PageHeader';
 
 export default function RequestExplorer({ mode }: { mode: 'requests' | 'archives' }) {
   const isArchive = mode === 'archives';
@@ -70,17 +71,14 @@ export default function RequestExplorer({ mode }: { mode: 'requests' | 'archives
     : [{ value: '', label: 'Tous les états actifs' }, { value: 'REGISTERED', label: 'Enregistrés' }, { value: 'IN_REVIEW', label: 'En instruction' }, { value: 'VALIDATED', label: 'Validés' }];
   const TitleIcon = isArchive ? Archive : ClipboardList;
 
-  return <div className="space-y-5">
-    <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-      <div><p className="eyebrow">Gestion des dossiers <span className="px-2">/</span> {isArchive ? 'Consultation' : 'Traitement'}</p>
-        <h1 className="mt-2 text-2xl font-bold tracking-tight text-navy sm:text-3xl">{isArchive ? 'Dossiers clôturés' : 'Demandes à suivre'}</h1>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">{isArchive
-          ? 'Retrouvez les demandes finalisées ou rejetées, avec une traçabilité adaptée à votre profil.'
-          : 'Votre espace de suivi des demandes en cours : de l’enregistrement jusqu’à la validation.'}</p>
-      </div>
-      <button type="button" onClick={exportPage} disabled={loading || !data?.items.length}
-        className="btn-secondary"><Download size={16}/> Exporter cette page <span className="hidden text-xs font-normal text-muted md:inline">(CSV)</span></button>
-    </header>
+  return <div className="space-y-6">
+    <PageHeader eyebrow={`Gestion des dossiers · ${isArchive ? 'Consultation' : 'Traitement'}`}
+      title={isArchive ? 'Dossiers clôturés' : 'Demandes à suivre'}
+      description={isArchive
+        ? 'Retrouvez les demandes finalisées ou rejetées, avec une traçabilité adaptée à votre profil.'
+        : 'Votre espace de suivi des demandes en cours : de l’enregistrement jusqu’à la validation.'}
+      actions={<button type="button" onClick={exportPage} disabled={loading || !data?.items.length}
+        className="btn-secondary"><Download size={16}/> Exporter cette page <span className="hidden text-xs font-normal text-muted md:inline">(CSV)</span></button>}/>
 
     {isArchive && <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-6 text-amber-950" role="note">
       <strong>Consultation numérique uniquement.</strong> « Clôturé » ne signifie pas archivé réglementairement : les durées de conservation, le versement et la destruction ne sont pas implémentés.

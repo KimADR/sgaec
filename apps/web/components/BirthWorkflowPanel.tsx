@@ -79,8 +79,9 @@ export default function BirthWorkflowPanel({ record, onUpdated }: {
       <ol className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4" aria-label="Étapes de traitement disponibles">
         {workflowStatuses.map((status, index) => {
           const currentPosition = workflowStatuses.indexOf(record.status);
-          const completed = currentPosition >= index;
-          return <li key={status} className={`rounded-lg border px-2 py-3 text-center ${completed ? 'border-blue-200 bg-sky-50 text-navy' : 'border-line text-muted'}`}>
+          const current = record.status === status;
+          const completed = currentPosition > index;
+          return <li key={status} aria-current={current ? 'step' : undefined} className={`rounded-lg border px-2 py-3 text-center ${current ? 'border-blue bg-sky text-navy' : completed ? 'border-blue/20 bg-slate-50 text-navy' : 'border-line text-muted'}`}>
             <span className="mb-1 block text-xs font-bold">{completed
               ? <CheckCircle2 size={17} className="mx-auto"/>
               : index + 1}</span>
@@ -90,19 +91,17 @@ export default function BirthWorkflowPanel({ record, onUpdated }: {
       </ol>
       {record.status === 'REJECTED' && <p className="rounded-lg bg-red-50 p-3 text-sm text-red-800">Ce dossier a été rejeté. La procédure de réouverture n’est pas implémentée.</p>}
       {allowedSteps.length > 0 ? <div className="space-y-3 border-t border-line pt-4">
-        <label className="block text-sm font-semibold text-ink">Prochaine opération
-          <select value={selected} onChange={event => {
-            setSelected(event.target.value as WorkflowStatus | '');
+        <h4 className="text-sm font-semibold text-ink">Actions disponibles pour votre profil</h4>
+        <div className="flex flex-wrap gap-2">
+          {allowedSteps.map(step => <button key={step.status} type="button" aria-pressed={selected === step.status} onClick={() => {
+            setSelected(selected === step.status ? '' : step.status);
             setError('');
-          }} className="mt-2 min-h-11 w-full rounded-lg border border-line bg-white px-3 text-sm font-normal text-ink focus:border-blue">
-            <option value="">Choisir une action autorisée…</option>
-            {allowedSteps.map(step => <option key={step.status} value={step.status}>{step.label}</option>)}
-          </select>
-        </label>
+          }} className={`inline-flex min-h-10 items-center justify-center rounded-lg border px-3 text-sm font-semibold ${selected === step.status ? step.dangerous ? 'border-red-700 bg-red-700 text-white' : 'border-blue bg-blue text-white' : step.dangerous ? 'border-red-200 bg-white text-red-700 hover:bg-red-50' : 'border-line bg-white text-navy hover:bg-sky'}`}>{step.label}</button>)}
+        </div>
         {selected === 'REJECTED' && <label className="block text-sm font-semibold text-ink">Motif du rejet <span className="text-red-600">*</span>
           <textarea maxLength={500} value={reason} onChange={event => setReason(event.target.value)} rows={3} placeholder="Indiquer le motif de rejet…" className="mt-2 w-full rounded-lg border border-line px-3 py-2 text-sm font-normal text-ink focus:border-blue"/>
         </label>}
-        <button type="button" disabled={!selected || busy} onClick={apply} className="inline-flex min-h-11 items-center justify-center rounded-lg bg-blue px-4 text-sm font-semibold text-white hover:bg-blue-dark disabled:cursor-not-allowed disabled:opacity-50">{busy ? 'Enregistrement…' : 'Confirmer l’opération'}</button>
+        {selected && <button type="button" disabled={busy || (selected === 'REJECTED' && reason.trim().length < 5)} onClick={apply} className="btn-primary">{busy ? 'Enregistrement…' : `Confirmer : ${allowedSteps.find(step => step.status === selected)?.label}`}</button>}
       </div> : <p className="border-t border-line pt-3 text-xs leading-5 text-muted">{steps[record.status].length
         ? 'Aucune nouvelle opération n’est autorisée pour votre profil.'
         : 'Aucune transition supplémentaire prévue à ce stade.'}</p>}

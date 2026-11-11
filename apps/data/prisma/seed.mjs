@@ -86,6 +86,70 @@ const legacyBirths = [
     address: 'Adresse fictive - Ankadifotsy', declarantName: 'Donnée de démonstration', status: 'REGISTERED' },
 ];
 
+const legacyCin = [
+  { fileNumber: 'CIN-DEMO-2026-0001', lastName: 'RAKOTONDRABE', firstNames: 'Soa Démonstration',
+    birthDate: new Date('1996-03-12T00:00:00Z'), birthPlace: 'Antananarivo',
+    address: 'Adresse fictive - Antananarivo II', district: 'Antananarivo II',
+    profession: 'Employé (fictif)', hasBirthCertificate: true, hasResidenceProof: true,
+    photosCount: 2, status: 'REGISTERED' },
+  { fileNumber: 'CIN-DEMO-2026-0002', lastName: 'RASOANIRINA', firstNames: 'Lala Démonstration',
+    birthDate: new Date('2001-08-05T00:00:00Z'), birthPlace: 'Antsirabe',
+    address: 'Adresse fictive - Analamahitsy', district: 'Antananarivo II',
+    profession: 'Artisan (fictif)', hasBirthCertificate: false, hasResidenceProof: true,
+    photosCount: 1, status: 'IN_REVIEW' },
+  { fileNumber: 'CIN-DEMO-2026-0003', lastName: 'RANDRIAFALY', firstNames: 'Hery Démonstration',
+    birthDate: new Date('1992-11-22T00:00:00Z'), birthPlace: 'Fianarantsoa',
+    address: 'Adresse fictive - Ankorondrano', district: 'Antananarivo II',
+    profession: 'Technicien (fictif)', hasBirthCertificate: true, hasResidenceProof: true,
+    photosCount: 2, status: 'VALIDATED' },
+  { fileNumber: 'CIN-DEMO-2026-0004', lastName: 'RAZAFINDRABE', firstNames: 'Mira Démonstration',
+    birthDate: new Date('1989-04-10T00:00:00Z'), birthPlace: 'Toamasina',
+    address: 'Adresse fictive - Antanimena', district: 'Antananarivo II',
+    profession: 'Commerçant (fictif)', hasBirthCertificate: true, hasResidenceProof: true,
+    photosCount: 2, status: 'ISSUED' },
+  { fileNumber: 'CIN-DEMO-2026-0005', lastName: 'RABENATOANDRO', firstNames: 'Feno Démonstration',
+    birthDate: new Date('1999-07-27T00:00:00Z'), birthPlace: 'Antananarivo',
+    address: 'Adresse fictive - Ambodivona', district: 'Antananarivo II',
+    profession: 'Étudiant (fictif)', hasBirthCertificate: false, hasResidenceProof: false,
+    photosCount: 0, status: 'REJECTED' },
+  { fileNumber: 'CIN-DEMO-2026-0006', lastName: 'RATSIMBAZAFY', firstNames: 'Tovo Démonstration',
+    birthDate: new Date('2000-01-18T00:00:00Z'), birthPlace: 'Mahajanga',
+    address: 'Adresse fictive - Ambohijatovo', district: 'Antananarivo II',
+    profession: 'Agent (fictif)', hasBirthCertificate: true, hasResidenceProof: false,
+    photosCount: 1, status: 'REGISTERED' },
+];
+
+const tenantCin = {
+  COMMUNE_DEMO_A: [
+    { fileNumber: 'CIN-TEST-COMMUNE-A-0001', lastName: 'CIN-FICTIF-A', firstNames: 'Personne A',
+      birthDate: new Date('1998-09-18T00:00:00Z'), birthPlace: 'Centre fictif A',
+      address: 'Adresse fictive A', district: 'Arrondissement A fictif',
+      hasBirthCertificate: true, hasResidenceProof: true, photosCount: 2, status: 'REGISTERED' },
+    { fileNumber: 'CIN-TEST-COMMUNE-A-0002', lastName: 'CIN-FICTIF-A-2', firstNames: 'Personne A2',
+      birthDate: new Date('1997-02-10T00:00:00Z'), birthPlace: 'Centre fictif A',
+      address: 'Adresse fictive A', district: 'Arrondissement A fictif',
+      hasBirthCertificate: true, hasResidenceProof: false, photosCount: 1, status: 'IN_REVIEW' },
+    { fileNumber: 'CIN-TEST-COMMUNE-A-0003', lastName: 'CIN-FICTIF-A-3', firstNames: 'Personne A3',
+      birthDate: new Date('1991-06-14T00:00:00Z'), birthPlace: 'Centre fictif A',
+      address: 'Adresse fictive A', district: 'Arrondissement A fictif',
+      hasBirthCertificate: true, hasResidenceProof: true, photosCount: 2, status: 'ISSUED' },
+  ],
+  COMMUNE_DEMO_B: [
+    { fileNumber: 'CIN-TEST-COMMUNE-B-0001', lastName: 'CIN-FICTIF-B', firstNames: 'Personne B',
+      birthDate: new Date('1993-12-03T00:00:00Z'), birthPlace: 'Centre fictif B',
+      address: 'Adresse fictive B', district: 'Arrondissement B fictif',
+      hasBirthCertificate: true, hasResidenceProof: true, photosCount: 2, status: 'REGISTERED' },
+    { fileNumber: 'CIN-TEST-COMMUNE-B-0002', lastName: 'CIN-FICTIF-B-2', firstNames: 'Personne B2',
+      birthDate: new Date('1990-04-24T00:00:00Z'), birthPlace: 'Centre fictif B',
+      address: 'Adresse fictive B', district: 'Arrondissement B fictif',
+      hasBirthCertificate: true, hasResidenceProof: true, photosCount: 2, status: 'VALIDATED' },
+    { fileNumber: 'CIN-TEST-COMMUNE-B-0003', lastName: 'CIN-FICTIF-B-3', firstNames: 'Personne B3',
+      birthDate: new Date('1995-08-31T00:00:00Z'), birthPlace: 'Centre fictif B',
+      address: 'Adresse fictive B', district: 'Arrondissement B fictif',
+      hasBirthCertificate: false, hasResidenceProof: false, photosCount: 0, status: 'REJECTED' },
+  ],
+};
+
 const tenantExamples = [
   {
     tenantCode: 'COMMUNE_DEMO_A',
@@ -146,9 +210,19 @@ async function seedBirthForTenant(tx, tenant, input) {
     centreEtatCivilId: tenant.centreId,
     registreId: tenant.registerId,
     citoyenId: citizen.id,
-    status: 'SUBMITTED',
+    status: ({
+      REGISTERED: 'SUBMITTED',
+      IN_REVIEW: 'IN_REVIEW',
+      VALIDATED: 'VALIDATED',
+      ISSUED: 'VALIDATED',
+      REJECTED: 'REJECTED',
+    })[input.status] || 'SUBMITTED',
     declarantName: input.declarantName || null,
     submittedAt: new Date(),
+    ...(input.status === 'VALIDATED' || input.status === 'ISSUED' ? { validatedAt: new Date() } : {}),
+    ...(input.status === 'REJECTED'
+      ? { rejectedAt: new Date(), rejectionReason: 'Cas fictif de démonstration' }
+      : {}),
   } });
   await tx.birthRecord.create({ data: {
     ...input,
@@ -159,6 +233,24 @@ async function seedBirthForTenant(tx, tenant, input) {
     declarationId: declaration.id,
     officeCode: tenant.code,
   } });
+}
+
+async function seedCinForTenant(tx, tenant, inputs) {
+  for (const input of inputs) {
+    const existing = await tx.cinApplication.findUnique({ where: { fileNumber: input.fileNumber } });
+    if (existing) {
+      if (existing.communeId !== tenant.communeId) {
+        throw new Error(`Numéro CIN de démonstration déjà utilisé dans une autre commune: ${input.fileNumber}`);
+      }
+      continue;
+    }
+    await tx.cinApplication.create({ data: {
+      ...input,
+      communeId: tenant.communeId,
+      centreEtatCivilId: tenant.centreId,
+      officeCode: tenant.code,
+    } });
+  }
 }
 
 async function main() {
@@ -185,7 +277,6 @@ async function main() {
     });
     seededRoles.set(definition.code, role);
     await prisma.$transaction(async (tx) => {
-      await tx.rolePermission.deleteMany({ where: { roleId: role.id } });
       await tx.rolePermission.createMany({
         data: definition.permissions.map((code) => ({
           roleId: role.id,
@@ -262,9 +353,12 @@ async function main() {
       }
       const example = tenantExamples.find((item) => item.tenantCode === tenant.code);
       if (example) await seedBirthForTenant(tx, tenant, example.birth);
+      const cinExamples = tenant.code === 'LEGACY_ANTANANARIVO_DEMO'
+        ? legacyCin : (tenantCin[tenant.code] || []);
+      await seedCinForTenant(tx, tenant, cinExamples);
     });
   }
-  console.log('Seed terminé : comptes et affectations de démonstration; données rattachées à trois communes isolées.');
+  console.log('Seed terminé : comptes, naissances et CIN fictives dans trois communes isolées.');
 }
 
 main()

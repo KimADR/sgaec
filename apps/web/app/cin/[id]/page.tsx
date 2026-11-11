@@ -10,6 +10,7 @@ import { dateFr, fullName } from '@/lib/format';
 import { Status } from '@/components/Status';
 import PdfDocumentViewer from '@/components/PdfDocumentViewer';
 import CinWorkflowPanel from '@/components/CinWorkflowPanel';
+import PageHeader from '@/components/PageHeader';
 
 export default function CinDetail() {
   const canPreview = useCan('documents:preview');
@@ -30,8 +31,9 @@ export default function CinDetail() {
   }, [params.id]);
   if (error) return <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800" role="alert">{error}</div>;
   if (!r) return <div className="rounded-2xl border border-line bg-white p-8 text-center text-sm text-muted" role="status">Chargement du dossier…</div>;
-  return <div className="flex flex-col gap-5"><p className="m-0 text-xs font-medium text-muted">CIN <span className="px-1">›</span> <Link className="hover:text-blue" href="/cin">Dossiers</Link> <span className="px-1">›</span> {r.file_number}</p>
-    <header className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center"><div><h2 className="m-0 text-2xl font-bold text-ink">Dossier de demande de CIN</h2><p className="mt-2 text-sm text-muted">{r.file_number} — {fullName(r)}</p></div><Link className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-line bg-white px-3 text-sm font-semibold text-navy-2 hover:bg-slate-50" href="/cin"><ArrowLeft size={16}/> Tous les dossiers</Link></header>
+  return <div className="flex flex-col gap-6">
+    <PageHeader eyebrow="Documents administratifs · CIN" title="Dossier de demande de CIN" description={`${r.file_number} · ${fullName(r)}`}
+      actions={<Link className="btn-secondary" href="/cin"><ArrowLeft size={16}/> Tous les dossiers</Link>}/>
     <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]"><div className="space-y-5"><section className="overflow-hidden rounded-2xl border border-line bg-white shadow-sm"><div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-4"><h3 className="m-0 flex items-center gap-2 text-base font-bold text-ink"><IdCard size={18} className="text-navy"/> Informations du demandeur</h3><Status status={r.status} issuedLabel="Clôturé"/></div>
       <dl className="grid grid-cols-1 gap-x-6 px-5 py-2 sm:grid-cols-2">{[
         ['Nom', r.last_name], ['Prénom(s)', r.first_names], ['Date de naissance', dateFr(r.birth_date)],

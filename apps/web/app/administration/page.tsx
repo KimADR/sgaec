@@ -5,6 +5,7 @@ import type { FormEvent } from 'react';
 import { useCan } from '@/components/AccessContext';
 import AccessDenied from '@/components/AccessDenied';
 import { apiGet, apiPost } from '@/lib/api';
+import PageHeader from '@/components/PageHeader';
 
 type RoleOption = { code: string; name: string };
 type CentreOption = { id: string; code: string; name: string };
@@ -87,10 +88,9 @@ export default function AdministrationPage() {
   const fieldClass = 'flex min-w-0 flex-col gap-2 text-sm font-semibold text-ink';
   const inputClass = 'min-h-11 w-full rounded-lg border border-line bg-white px-3 py-2 text-sm font-normal text-ink outline-none focus:border-blue focus:ring-2 focus:ring-blue/20';
   if (!canManage) return <AccessDenied action="administrer les comptes utilisateurs"/>;
-  return <div className="flex flex-col gap-5">
-    <header><p className="mb-2 text-xs font-bold uppercase tracking-[0.16em] text-muted">Gestion des accès</p><h2 className="m-0 text-2xl font-bold text-ink">Administration des utilisateurs</h2>
-        <p className="mt-2 text-sm text-muted">Les rôles et centres proposés sont limités à la commune active et aux habilitations du compte.</p>
-    </header>
+  return <div className="flex flex-col gap-6">
+    <PageHeader eyebrow="Gestion des accès" title="Administration des utilisateurs"
+      description="Les rôles et centres proposés sont limités à la commune active et aux habilitations du compte."/>
 
     {error && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800" role="alert">{error}</div>}
     {notice && <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800" role="status">{notice}</div>}

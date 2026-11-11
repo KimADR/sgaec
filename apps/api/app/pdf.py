@@ -21,6 +21,7 @@ from reportlab.platypus import (
     SimpleDocTemplate,
     TableStyle,
 )
+from .birth_pdf import render_birth_specimen as _render_birth_specimen
 
 FONT_REGULAR = "Helvetica"
 FONT_BOLD = "Helvetica-Bold"
@@ -317,32 +318,7 @@ def _render_specimen(
 
 
 def render_birth_specimen(record: dict) -> bytes:
-    sections = [
-        ("IDENTITÉ", [
-            ("Nom", record["last_name"]),
-            ("Prénom(s)", record["first_names"]),
-            ("Sexe", "Masculin" if record["sex"] == "M" else "Féminin"),
-            ("Date de naissance", format_french(record["birth_date"])),
-            ("Lieu de naissance", record["place_of_birth"]),
-            ("Nationalité", record["nationality"]),
-        ]),
-        ("ANCRAGE TERRITORIAL", [
-            ("Arrondissement", record["district"]),
-            ("Commune", record["municipality"]),
-        ]),
-        ("FILIATION ET DÉCLARATION", [
-            ("Père", record.get("father_name") or "Non renseigné"),
-            ("Mère", record.get("mother_name") or "Non renseigné"),
-            ("Adresse déclarée", record.get("address") or "Non renseignée"),
-            ("Déclarant", record.get("declarant_name") or "Non renseigné"),
-        ]),
-    ]
-    return _render_specimen(
-        "EXTRAIT D'ACTE DE NAISSANCE",
-        f"Registre d'état civil — {format_locality(record)}",
-        record["record_number"],
-        sections,
-    )
+    return _render_birth_specimen(record, FONT_REGULAR, FONT_BOLD)
 
 
 def render_cin_specimen(record: dict) -> bytes:

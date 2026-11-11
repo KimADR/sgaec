@@ -2,12 +2,12 @@
 
 import { useCan } from '@/components/AccessContext';
 import AccessDenied from '@/components/AccessDenied';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { UserRoundPlus } from 'lucide-react';
 import CitizenForm from '@/components/CitizenForm';
 import { apiPost } from '@/lib/api';
 import type { Citizen, CitizenInput } from '@/lib/types';
+import PageHeader from '@/components/PageHeader';
 
 const initialCitizen: CitizenInput = {
   last_name: '',
@@ -29,8 +29,8 @@ export default function NewCitizenPage() {
 
   if (!canManage) return <AccessDenied action="créer une fiche citoyen"/>;
 
-  return <div className="flex flex-col gap-5">
-    <p className="m-0 text-xs font-medium text-muted"><Link className="hover:text-blue" href="/citoyens">Citoyens</Link><span className="px-1">›</span>Nouveau</p>
+  return <div className="flex flex-col gap-6">
+    <PageHeader eyebrow="Répertoire communal · Citoyens" title="Nouvelle fiche citoyen" description="La fiche sera rattachée à la commune active et à un centre autorisé."/>
     <section className="overflow-hidden rounded-2xl border border-line bg-white shadow-sm">
       <div className="flex items-start gap-3 border-b border-line px-5 py-5"><UserRoundPlus size={24} className="mt-1 shrink-0 text-navy"/><div><h2 className="m-0 text-xl font-bold text-ink">Créer une fiche citoyen</h2><p className="mt-1 text-sm text-muted">La fiche sera rattachée à la commune active et à un centre autorisé.</p></div></div>
       <CitizenForm initial={initialCitizen} submitLabel="Créer le citoyen"

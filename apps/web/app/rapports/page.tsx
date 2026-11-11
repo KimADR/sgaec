@@ -7,6 +7,7 @@ import { dateFr, todayInAntananarivo } from '@/lib/format';
 import { reportsCsv } from '@/lib/reports';
 import type { ReportsData, WorkflowStatus } from '@/lib/types';
 import { Status } from '@/components/Status';
+import PageHeader from '@/components/PageHeader';
 
 function daysBefore(date: string, days: number) {
   const [year, month, day] = date.split('-').map(Number);
@@ -49,12 +50,11 @@ export default function ReportsPage() {
   const statusOrder: WorkflowStatus[] = ['REGISTERED', 'IN_REVIEW', 'VALIDATED', 'ISSUED', 'REJECTED'];
 
   return <div className="flex flex-col gap-5">
-    <header className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center"><div>
-      <h2 className="m-0 text-2xl font-bold text-ink">Rapports et statistiques</h2>
-      <p className="mt-2 text-sm text-muted">Volumes de dossiers agrégés depuis les registres de démonstration autorisés.</p>
-    </div><button className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-blue px-4 text-sm font-semibold text-white hover:bg-blue-dark disabled:cursor-not-allowed disabled:opacity-50" type="button" onClick={downloadCsv} disabled={!report || loading}>
-      <Download size={17}/> Exporter en CSV
-    </button></header>
+    <PageHeader eyebrow="Pilotage · Données agrégées" title="Rapports et statistiques"
+      description="Volumes de dossiers agrégés depuis les registres de démonstration autorisés."
+      actions={<button className="btn-primary disabled:cursor-not-allowed" type="button" onClick={downloadCsv} disabled={!report || loading}>
+        <Download size={17}/> Exporter en CSV
+      </button>}/>
     <section className="grid grid-cols-1 gap-4 rounded-2xl border border-line bg-white p-5 shadow-sm md:grid-cols-[minmax(0,1fr)_180px_180px] md:items-end">
       <div className="flex items-start gap-3"><FileBarChart2 size={20} className="mt-1 shrink-0 text-navy"/><div><h3 className="m-0 text-base font-bold text-ink">Période du rapport</h3>
         <p className="mt-1 text-sm text-muted">Jusqu’à 366 jours inclus. Les dates suivent le calendrier local d’Antananarivo.</p></div></div>

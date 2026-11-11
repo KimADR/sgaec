@@ -56,3 +56,16 @@ L'inspection visuelle interactive authentifiée des pages internes et de la side
 ## Démarrage de démonstration
 
 Suivre [GUIDE_DEMONSTRATION.md](./GUIDE_DEMONSTRATION.md). Le point d'entrée après démarrage est `http://localhost:3000`; le compte fictif est `demo.admin`, avec le mot de passe choisi localement dans `.env.demo`.
+
+## Addendum — intégration ciblée de livraison
+
+Les éléments ci-dessous ont été intégrés après les vérifications datées du 9 novembre ; ces vérifications antérieures ne valent pas validation de ces changements :
+
+- Les portées territoriales sont maintenant calculées par permission et centre, puis intersectées pour les ressources qui exigent plusieurs permissions.
+- Les transitions de naissance utilisent une mise à jour conditionnelle du statut et de `updatedAt`; une concurrence est renvoyée en HTTP 409.
+- Le Compose isolé utilise un volume neuf `sgaec-demo-isolated_demo_pgdata_restricted`, un rôle PostgreSQL propriétaire pour les migrations et le seed, et `sgaec_app` sans superprivilèges pour le service data.
+- Les tests PostgreSQL différés chargent Prisma uniquement lorsqu'ils sont activés. Les scripts de préparation des secrets et de smoke test HTTP sont documentés dans le guide.
+
+Vérifications exécutées sur cette intégration : `npm test` dans `apps/data` (**14 réussis, 1 ignoré**), contrôles de syntaxe JavaScript et Python, et `docker compose ... config --quiet` (**réussi**). Le test ignoré est le contrôle RLS qui nécessite une base PostgreSQL de recette et un rôle non-superutilisateur.
+
+**Non exécutés pour préserver les données existantes :** démarrage Docker, migration, seed, test RLS PostgreSQL et recette HTTP. Le nouveau volume isolé n'a pas été créé ni démarré ; le volume historique et les fichiers `.env` locaux n'ont pas été modifiés. Le `DATABASE_URL` applicatif doit viser `sgaec_app`; les migrations restent réservées au rôle propriétaire et uniquement à la base de démonstration isolée.

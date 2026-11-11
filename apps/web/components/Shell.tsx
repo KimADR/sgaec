@@ -190,10 +190,10 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   function navLink({ label, href, icon: Icon }: NavigationLink) {
     const current = href === '/' ? pathname === '/' : pathname === href || pathname.startsWith(`${href}/`);
     return <Link key={href} href={href} onClick={() => setSidebarOpen(false)} aria-current={current ? 'page' : undefined}
-      className={`group flex min-h-10 items-center gap-3 rounded-xl border-l-[3px] px-3 py-0.5 text-[13px] font-medium transition-colors focus-visible:outline-2 focus-visible:outline-white ${current
-        ? 'border-sky-300 bg-[#1d4a75] text-white shadow-sm'
-        : 'border-transparent text-[#b9ccdf] hover:bg-[#1b456d] hover:text-white'}`}>
-      <Icon size={18} strokeWidth={1.9} className={current ? 'text-sky-300' : 'text-slate-300 group-hover:text-white'}/>
+      className={`group flex min-h-10 items-center gap-3 rounded-lg border-l-[3px] px-3 py-0.5 text-[13px] font-medium transition-colors focus-visible:outline-2 focus-visible:outline-white ${current
+        ? 'border-sky-300 bg-white/12 text-white'
+        : 'border-transparent text-[#c2cfda] hover:bg-white/8 hover:text-white'}`}>
+      <Icon size={18} strokeWidth={1.9} className={current ? 'text-sky-200' : 'text-slate-300 group-hover:text-white'}/>
       <span className="flex-1">{label}</span>
       {current && <ChevronRight size={15} aria-hidden="true" className="text-slate-200"/>}
     </Link>;
@@ -204,15 +204,15 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     {sidebarOpen && <button type="button" className="fixed inset-0 z-30 bg-navy/60 lg:hidden" aria-label="Fermer la navigation" onClick={() => { setSidebarOpen(false); menuToggleRef.current?.focus(); }}/>}
     <aside ref={sidebarRef} id="navigation-principale" aria-label="Navigation principale"
       role={sidebarOpen ? 'dialog' : undefined} aria-modal={sidebarOpen || undefined}
-      className={`fixed inset-y-0 left-0 z-40 flex w-[282px] max-w-[calc(100vw-48px)] flex-col border-r border-white/10 bg-[linear-gradient(180deg,#092847_0%,#12395e_65%,#0c2c4c_100%)] text-white shadow-2xl transition-transform duration-200 lg:translate-x-0 lg:shadow-none ${sidebarOpen ? 'visible translate-x-0' : 'invisible -translate-x-full lg:visible'}`}>
+      className={`fixed inset-y-0 left-0 z-40 flex w-[264px] max-w-[calc(100vw-48px)] flex-col border-r border-white/10 bg-navy text-white shadow-xl transition-transform duration-200 lg:translate-x-0 lg:shadow-none ${sidebarOpen ? 'visible translate-x-0' : 'invisible -translate-x-full lg:visible'}`}>
       <div className="relative border-b border-white/10 px-5 py-5">
         <div className="flex items-center gap-3">
-          <div className="grid size-11 shrink-0 place-items-center rounded-xl border border-[#7bbce8]/25 bg-[#1b527b] text-[#d6efff]"><Landmark size={24}/></div>
+          <div className="grid size-11 shrink-0 place-items-center rounded-xl border border-white/15 bg-white/10 text-white"><Landmark size={23}/></div>
           <div className="min-w-0"><strong className="block text-[22px] font-extrabold tracking-tight">SGAEC</strong><span className="mt-0.5 block text-[11px] leading-4 text-slate-300">Administration &amp; état civil</span></div>
         </div>
         <button type="button" className="absolute right-2 top-2 grid size-10 place-items-center rounded-lg hover:bg-white/10 lg:hidden" onClick={() => { setSidebarOpen(false); menuToggleRef.current?.focus(); }} aria-label="Fermer le menu"><X size={19}/></button>
       </div>
-      <nav className="sidebar-navigation flex flex-1 flex-col gap-6 overflow-y-auto px-3 py-6" aria-label="Rubriques de l’application">
+      <nav className="sidebar-navigation flex flex-1 flex-col gap-5 overflow-y-auto px-3 py-5" aria-label="Rubriques de l’application">
         <div className="flex flex-col gap-1"><p className="px-3 pb-1 text-[10px] font-bold uppercase tracking-[0.18em] text-[#83a6c5]">Espace de travail</p>
           {primaryLinks.filter(link => can(link.permission)).map(navLink)}</div>
         {can('births:read') && <div className="flex flex-col gap-1"><p className="px-3 pb-1 text-[10px] font-bold uppercase tracking-[0.18em] text-[#83a6c5]">État civil</p>
@@ -234,22 +234,22 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         {managementLinks.some(link => can(link.permission)) && <div className="flex flex-col gap-1"><p className="px-3 pb-1 text-[10px] font-bold uppercase tracking-[0.18em] text-[#83a6c5]">Pilotage</p>
           {managementLinks.filter(link => can(link.permission)).map(navLink)}</div>}
       </nav>
-      <div className="m-3 mt-0 rounded-xl border border-white/10 bg-white/5 p-3">
+      <div className="m-3 mt-0 rounded-lg border border-white/10 bg-white/5 p-3">
         <div className="flex items-center gap-2"><span className="size-2 rounded-full bg-emerald-300"/><strong className="text-xs font-semibold text-white">SGAEC · V2 Démo</strong></div>
         <p className="mt-1.5 text-[11px] leading-5 text-[#a7bfd4]">Espace de travail sécurisé par commune et habilitation.</p>
       </div>
     </aside>
 
-    <div className="min-h-screen lg:ml-[282px]">
-      <header className="sticky top-0 z-20 flex min-h-[78px] items-center justify-between gap-3 border-b border-line bg-white/95 px-4 backdrop-blur sm:px-6 lg:px-8">
+    <div className="min-h-screen lg:ml-[264px]">
+    <header className="sticky top-0 z-20 flex min-h-[72px] items-center justify-between gap-2 border-b border-line bg-white/95 px-3 backdrop-blur-sm sm:px-6 lg:px-8">
         <div className="flex min-w-0 items-center gap-3">
           <button ref={menuToggleRef} type="button" className="grid size-11 shrink-0 place-items-center rounded-lg text-navy hover:bg-slate-100 lg:hidden" onClick={() => setSidebarOpen(true)} aria-label="Ouvrir le menu" aria-controls="navigation-principale" aria-expanded={sidebarOpen}><Menu size={22}/></button>
           <div className="min-w-0"><p className="hidden text-[10px] font-semibold uppercase tracking-[0.15em] text-muted sm:block">Espace administratif</p>
             <p className="truncate text-sm font-extrabold tracking-tight text-navy sm:text-lg">{pageTitle}</p></div>
         </div>
         <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-          {communes.length > 1 && <label className="hidden items-center gap-2 text-xs font-semibold text-muted sm:flex"><span className="hidden xl:inline">Commune</span>
-            <select className="min-h-10 max-w-36 rounded-lg border border-line bg-white px-2 text-xs text-ink lg:max-w-48" aria-label="Changer la commune active" value={communeId} onChange={event => changeCommune(event.target.value)}>
+          {communes.length > 1 && <label className="hidden min-w-0 items-center gap-2 rounded-lg border border-line bg-slate-50 px-2 text-xs font-semibold text-muted sm:flex"><MapPin size={15} className="shrink-0 text-blue"/><span className="sr-only">Commune active</span>
+            <select className="min-h-9 max-w-36 border-0 bg-transparent px-1 text-xs font-semibold text-ink focus:ring-0 lg:max-w-48" aria-label="Changer la commune active" value={communeId} onChange={event => changeCommune(event.target.value)}>
               {communes.map(commune => <option key={commune.id} value={commune.id}>{commune.name}</option>)}
             </select></label>}
           {communes.length === 1 && activeCommune && <span className="hidden max-w-48 items-center gap-1.5 truncate text-xs font-semibold text-muted xl:inline-flex"><MapPin size={15} className="shrink-0 text-blue"/>{activeCommune.name}</span>}
@@ -262,12 +262,12 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         </div>
       </header>
       {communes.length > 1 && <div className="border-b border-line bg-white px-4 py-2 sm:hidden"><label className="flex items-center gap-3 text-xs font-medium text-muted">Commune active
-        <select className="min-h-10 min-w-0 flex-1 rounded-lg border border-line bg-white px-2 text-xs text-ink" value={communeId} onChange={event => changeCommune(event.target.value)}>
+        <select className="min-h-10 min-w-0 flex-1 border border-line bg-white px-2 text-xs text-ink" aria-label="Changer la commune active" value={communeId} onChange={event => changeCommune(event.target.value)}>
           {communes.map(commune => <option key={commune.id} value={commune.id}>{commune.name}</option>)}
         </select></label></div>}
       {communes.length === 1 && activeCommune && <div className="border-b border-line bg-white px-4 py-2 text-xs text-muted sm:hidden"><span className="font-semibold">Commune active :</span> {activeCommune.name}</div>}
       {authError && <div role="alert" className="mx-4 mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800 sm:mx-6 lg:mx-8">{authError}</div>}
-      <main id="contenu" className="mx-auto max-w-[1500px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+      <main id="contenu" className="mx-auto w-full max-w-[1600px] px-4 py-6 sm:px-6 lg:px-9 lg:py-8">
         <AccessProvider permissions={permissions} commune={activeCommune ?? null}>{children}</AccessProvider>
       </main>
     </div>

@@ -2,11 +2,13 @@
 import { useCan } from '@/components/AccessContext';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Plus, Search, UsersRound } from 'lucide-react';
+import { ArrowRight, Plus, Search, UsersRound } from 'lucide-react';
 import { apiGet } from '@/lib/api';
+import { dateFr } from '@/lib/format';
 import type { Citizen, PageResult } from '@/lib/types';
 import Pagination from '@/components/Pagination';
 import CitizenCard from '@/components/CitizenCard';
+import PageHeader from '@/components/PageHeader';
 
 export default function CitizensPage() {
   const canCreate = useCan('citizens:manage');
@@ -40,11 +42,9 @@ export default function CitizensPage() {
     return () => { active = false; window.clearTimeout(timeout); };
   }, [query, page, pageSize, refresh]);
 
-  return <div className="flex flex-col gap-5">
-    <header className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
-      <div><h2 className="m-0 text-2xl font-bold text-ink">Citoyens</h2><p className="mt-2 text-sm text-muted">Consultez et gérez les fiches de la commune active.</p></div>
-      {canCreate && <Link className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-blue px-4 text-sm font-semibold text-white hover:bg-blue-dark" href="/citoyens/nouveau"><Plus size={17}/> Nouveau citoyen</Link>}
-    </header>
+  return <div className="flex flex-col gap-6">
+    <PageHeader eyebrow="Répertoire communal" title="Citoyens" description="Consultez et gérez les fiches de la commune active."
+      actions={canCreate && <Link className="btn-primary" href="/citoyens/nouveau"><Plus size={17}/> Nouveau citoyen</Link>}/>
     <section id="citizens-resultats" aria-busy={loading} className="scroll-mt-24 overflow-hidden rounded-2xl border border-line bg-white shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-4">
         <h3 className="m-0 flex items-center gap-2 text-base font-bold text-ink"><UsersRound size={19} className="text-navy"/> Répertoire des citoyens</h3>
@@ -62,9 +62,20 @@ export default function CitizensPage() {
       ) : rows.length === 0 ? (
         <p className="p-8 text-center text-sm text-muted" role="status">Aucun citoyen correspondant.</p>
       ) : (
-        <div className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2 xl:grid-cols-3" aria-label="Fiches citoyen">
-          {rows.map(citizen => <CitizenCard key={citizen.id} citizen={citizen} />)}
-        </div>
+        <>
+          <div className="grid grid-cols-1 gap-3 p-3 lg:hidden" aria-label="Fiches citoyen">
+            {rows.map(citizen => <CitizenCard key={citizen.id} citizen={citizen} />)}
+          </div>
+          <div className="hidden overflow-x-auto lg:block"><table className="app-table">
+            <thead><tr><th>Citoyen</th><th>Date de naissance</th><th>Lieu de naissance</th><th>Centre</th><th>Actes liés</th><th><span className="sr-only">Action</span></th></tr></thead>
+            <tbody>{rows.map(citizen => <tr key={citizen.id}>
+              <td><span className="font-semibold text-ink">{citizen.last_name} {citizen.first_names}</span><span className={`ml-2 inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${citizen.active ? 'bg-emerald-50 text-emerald-800' : 'bg-slate-100 text-slate-700'}`}>{citizen.active ? 'Actif' : 'Archivé'}</span></td>
+              <td className="whitespace-nowrap text-muted">{dateFr(citizen.birth_date)}</td>
+              <td>{citizen.birth_place}</td><td>{citizen.centre.name}</td><td className="text-muted">{citizen.birth_records.length}</td>
+              <td><Link className="inline-flex min-h-9 items-center gap-1 rounded-md px-2 font-semibold text-blue hover:bg-sky" href={`/citoyens/${citizen.id}`} aria-label={`Consulter ${citizen.last_name} ${citizen.first_names}`}>Ouvrir <ArrowRight size={15}/></Link></td>
+            </tr>)}</tbody>
+          </table></div>
+        </>
       )}
       {!error && <Pagination page={page} total={total} pageSize={pageSize} loading={loading}
         onPageSizeChange={size => { setPage(1); setPageSize(size); }}

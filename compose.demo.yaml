@@ -1,26 +1,28 @@
-name: sgaec-demo-isolated
+name: sgaec-demo-maire
 
 services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB in .env.demo}
-      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER in .env.demo}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.demo}
+      POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB in .env.demo.maire}
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER in .env.demo.maire}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.demo.maire}
+      POSTGRES_APP_PASSWORD: ${POSTGRES_APP_PASSWORD:?set POSTGRES_APP_PASSWORD in .env.demo.maire}
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
       interval: 5s
       timeout: 3s
       retries: 20
     volumes:
-      - demo_pgdata:/var/lib/postgresql/data
+      - demo_pgdata_restricted:/var/lib/postgresql/data
+      - ./ops/postgres/01-init-app.sql:/docker-entrypoint-initdb.d/01-init-app.sql:ro
     networks: [private]
 
   data:
     build: ./apps/data
     environment:
-      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL in .env.demo}
-      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:?set INTERNAL_API_TOKEN in .env.demo}
+      DATABASE_URL: ${APP_DATABASE_URL:?set APP_DATABASE_URL in .env.demo.maire}
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:?set INTERNAL_API_TOKEN in .env.demo.maire}
       PORT: 4000
       NODE_ENV: production
     depends_on:
@@ -39,7 +41,7 @@ services:
     profiles: [maintenance]
     command: ["npm", "run", "db:migrate"]
     environment:
-      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL in .env.demo}
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL in .env.demo.maire}
       NODE_ENV: production
     depends_on:
       postgres:
@@ -51,9 +53,9 @@ services:
     profiles: [maintenance]
     command: ["npm", "run", "db:seed"]
     environment:
-      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL in .env.demo}
-      BOOTSTRAP_ADMIN_USERNAME: ${BOOTSTRAP_ADMIN_USERNAME:?set BOOTSTRAP_ADMIN_USERNAME in .env.demo}
-      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:?set BOOTSTRAP_ADMIN_PASSWORD in .env.demo}
+      DATABASE_URL: ${APP_DATABASE_URL:?set APP_DATABASE_URL in .env.demo.maire}
+      BOOTSTRAP_ADMIN_USERNAME: ${BOOTSTRAP_ADMIN_USERNAME:?set BOOTSTRAP_ADMIN_USERNAME in .env.demo.maire}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:?set BOOTSTRAP_ADMIN_PASSWORD in .env.demo.maire}
       NODE_ENV: production
     depends_on:
       postgres:
@@ -65,8 +67,8 @@ services:
     environment:
       APP_MODE: demo
       DATA_SERVICE_URL: http://data:4000
-      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:?set INTERNAL_API_TOKEN in .env.demo}
-      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env.demo}
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:?set INTERNAL_API_TOKEN in .env.demo.maire}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env.demo.maire}
       JWT_ISSUER: sgaec-api
       JWT_AUDIENCE: sgaec-web
       JWT_TTL_MINUTES: ${JWT_TTL_MINUTES:-30}
@@ -78,7 +80,7 @@ services:
     ports:
       - "127.0.0.1:8000:8000"
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=3)"]
       interval: 5s
       timeout: 3s
       retries: 20
@@ -105,4 +107,4 @@ networks:
     driver: bridge
 
 volumes:
-  demo_pgdata:
+  demo_pgdata_restricted:

@@ -35,7 +35,11 @@ export default function CitizenForm({ initial, submitLabel, onSubmit, onCancel }
 
   const fieldClass = 'flex min-w-0 flex-col gap-2 text-sm font-semibold text-ink';
   const inputClass = 'min-h-11 w-full rounded-lg border border-line bg-white px-3 py-2 text-sm font-normal text-ink shadow-sm outline-none transition placeholder:text-muted focus:border-blue focus:ring-2 focus:ring-blue/20';
-  return <form className="grid grid-cols-1 gap-5 p-5 sm:grid-cols-2" onSubmit={submit}>
+  return <form className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2 sm:p-5" onSubmit={submit}>
+    <div className="col-span-full border-b border-line pb-3">
+      <h3 className="text-sm font-bold text-navy">Identité et informations de naissance</h3>
+      <p className="mt-1 text-xs text-muted">Les champs marqués d’un astérisque sont obligatoires.</p>
+    </div>
     <label className={fieldClass}><span>Nom <b className="text-red-600">*</b></span>
       <input className={inputClass} required minLength={2} maxLength={120} value={form.last_name}
         onChange={event => update('last_name', event.target.value)} />
@@ -63,7 +67,7 @@ export default function CitizenForm({ initial, submitLabel, onSubmit, onCancel }
       <input className={inputClass} required minLength={2} maxLength={160} value={form.birth_place}
         onChange={event => update('birth_place', event.target.value)} />
     </label>
-    {error && <div className="col-span-full rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800" role="alert">{error}</div>}
+    {error && <div className="col-span-full rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800" role="alert" aria-live="polite">{error}</div>}
     <div className="col-span-full flex flex-wrap justify-end gap-3 border-t border-line pt-4">
       <button className="inline-flex min-h-11 items-center justify-center rounded-lg border border-line bg-white px-4 text-sm font-semibold text-navy-2 transition hover:bg-slate-50 disabled:opacity-50" type="button" onClick={onCancel} disabled={saving}>Annuler</button>
       <button className="inline-flex min-h-11 items-center justify-center rounded-lg bg-blue px-4 text-sm font-semibold text-white transition hover:bg-blue-dark disabled:cursor-not-allowed disabled:opacity-50" type="submit" disabled={saving}>{saving ? 'Enregistrement…' : submitLabel}</button>

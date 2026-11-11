@@ -154,9 +154,10 @@ export default function CinWorkflowPanel({
       <ol className="grid grid-cols-2 gap-2 sm:grid-cols-4" aria-label="Progression du dossier">
         {progression.map((step, index) => {
           const currentIndex = progression.indexOf(record.status);
-          const done = currentIndex >= index && record.status !== 'REJECTED';
+          const current = step === record.status;
+          const done = currentIndex > index && record.status !== 'REJECTED';
           return <li key={step} aria-current={step === record.status ? 'step' : undefined}
-            className={`flex flex-col items-center gap-2 rounded-xl border p-3 text-center text-[11px] font-semibold ${done ? 'border-blue/30 bg-sky-50 text-navy' : 'border-line text-muted'}`}>
+            className={`flex flex-col items-center gap-2 rounded-lg border p-3 text-center text-[11px] font-semibold ${current ? 'border-blue bg-sky text-navy' : done ? 'border-blue/20 bg-slate-50 text-navy' : 'border-line text-muted'}`}>
             <span className={`grid size-7 place-items-center rounded-full ${done ? 'bg-blue text-white' : 'border border-line bg-white text-muted'}`}>{done ? <CheckCircle2 size={16}/> : index + 1}</span>{labels[step]}
           </li>;
         })}
@@ -181,13 +182,17 @@ export default function CinWorkflowPanel({
         </div>}
       </div>
       {actions.length ? <div className="space-y-3 border-t border-line pt-4">
-        <label className="block text-sm font-bold text-ink">Action métier autorisée
-          <select className="form-control mt-2" value={selected} onChange={event => { setSelected(event.target.value as WorkflowStatus | ''); setError(''); }}>
-            <option value="">Sélectionner une étape…</option>{actions.map(action => <option key={action.value} value={action.value} disabled={action.value === 'VALIDATED' && !canValidate}>{action.label}</option>)}
-          </select>
-        </label>
+        <h4 className="text-sm font-bold text-ink">Actions métier autorisées</h4>
+        <div className="flex flex-wrap gap-2">
+          {actions.map(action => {
+            const blocked = action.value === 'VALIDATED' && !canValidate;
+            return <button key={action.value} type="button" disabled={blocked} aria-pressed={selected === action.value} onClick={() => { setSelected(selected === action.value ? '' : action.value); setError(''); }}
+              className={`inline-flex min-h-10 items-center justify-center rounded-lg border px-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50 ${selected === action.value ? action.value === 'REJECTED' ? 'border-red-700 bg-red-700 text-white' : 'border-blue bg-blue text-white' : action.value === 'REJECTED' ? 'border-red-200 bg-white text-red-700 hover:bg-red-50' : 'border-line bg-white text-navy hover:bg-sky'}`}>{action.label}</button>;
+          })}
+        </div>
+        {!canValidate && actions.some(action => action.value === 'VALIDATED') && <p className="text-xs text-amber-800">Validation bloquée : les pièces déclarées requises sont manquantes.</p>}
         {selected === 'REJECTED' && <label className="block text-sm font-bold text-ink">Motif du rejet <span className="text-red-600">*</span><textarea className="form-control mt-2" rows={3} maxLength={500} value={reason} onChange={event => setReason(event.target.value)} placeholder="Motif explicite et vérifiable…"/></label>}
-        <button type="button" className="btn-primary" disabled={!selected || busy} onClick={apply}>{busy ? 'Enregistrement…' : 'Confirmer la transition'}</button>
+        {selected && <button type="button" className="btn-primary" disabled={busy || (selected === 'REJECTED' && reason.trim().length < 5) || (selected === 'VALIDATED' && !canValidate)} onClick={apply}>{busy ? 'Enregistrement…' : `Confirmer : ${actions.find(action => action.value === selected)?.label}`}</button>}
       </div> : <p className="border-t border-line pt-4 text-xs text-muted">{nextActions[record.status].length ? 'Vous ne disposez pas des droits nécessaires pour cette étape.' : 'Ce statut est terminal pour le circuit de démonstration.'}</p>}
       {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</p>}
       {notice && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p>}

@@ -6,6 +6,7 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { pageResult, parsePagination } from './pagination.mjs';
 import { reportPeriod, summarizeWorkflowCounts } from './reporting.mjs';
 import { CIN_TRANSITIONS, checkCinTransition, requestScopeFilter, canEditCinEvidence } from './workflow.mjs';
+import { buildTerritorialAccess } from './access.mjs';
 
 const scrypt = promisify(scryptCallback);
 
@@ -24,7 +25,14 @@ const prisma = new PrismaClient({
 const app = express();
 app.disable('x-powered-by');
 app.use(express.json({ limit: '64kb' }));
-app.get('/health', (_req, res) => res.json({ ok: true, service: 'sgaec-data' }));
+app.get('/health', async (_req, res) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    res.json({ ok: true, service: 'sgaec-data', database: 'ready' });
+  } catch (_error) {
+    res.status(503).json({ ok: false, detail: 'Base de données indisponible' });
+  }
+});
 
 app.use('/internal', (req, res, next) => {
   if (req.header('x-internal-token') !== process.env.INTERNAL_API_TOKEN) {
@@ -155,36 +163,35 @@ async function scoped(req, res, permission, callback) {
         select: { id: true },
       })
       : [];
-    const activeCentreIds = new Set(activeCentres.map((centre) => centre.id));
-    const scopedAssignments = assignments.filter((item) =>
-      !item.centreEtatCivilId || activeCentreIds.has(item.centreEtatCivilId));
-    const permissions = new Set(scopedAssignments.flatMap((item) =>
-      item.role.permissions.map((itemPermission) => itemPermission.permission.code)));
-    const requiredPermissions = Array.isArray(permission) ? permission : [permission];
-    if (!commune || !scopedAssignments.length || !requiredPermissions.some((item) => permissions.has(item))) {
+    const access = buildTerritorialAccess(assignments, activeCentres.map((centre) => centre.id));
+    const requestScope = access.scopeFor(permission, 'any');
+    if (!commune || !requestScope.permitted) {
       const error = new Error('Affectation ou permission territoriale insuffisante');
       error.status = 403;
       throw error;
     }
-    const centreIds = [...activeCentreIds];
     const context = {
       userId,
       communeId,
       commune,
-      roles: [...new Set(scopedAssignments.map((item) => item.role.code))],
-      permissions,
-      centreIds,
-      communeWide: scopedAssignments.some((item) => !item.centreEtatCivilId),
+      roles: [...new Set(access.validAssignments.map((item) => item.role.code))],
+      permissions: access.permissions,
+      centreIds: requestScope.centreIds,
+      communeWide: requestScope.communeWide,
+      scopeFor: access.scopeFor,
     };
     return callback(tx, context);
   });
   res.json(result);
 }
 
-function territoryWhere(context) {
+function territoryWhere(context, requiredPermissions = null) {
+  const scope = requiredPermissions === null
+    ? context
+    : context.scopeFor(requiredPermissions, 'all');
   return {
     communeId: context.communeId,
-    ...(context.communeWide ? {} : { centreEtatCivilId: { in: context.centreIds } }),
+    ...(scope.communeWide ? {} : { centreEtatCivilId: { in: scope.centreIds } }),
   };
 }
 
@@ -463,26 +470,29 @@ app.get('/internal/user-options', async (req, res, next) => {
 app.get('/internal/summary', async (req, res, next) => {
   try {
     await scoped(req, res, 'dashboard:read', async (tx, context) => {
-      const where = territoryWhere(context);
+      const citizenWhere = territoryWhere(context, ['dashboard:read', 'citizens:read']);
+      const birthWhere = territoryWhere(context, ['dashboard:read', 'births:read']);
+      const cinWhere = territoryWhere(context, ['dashboard:read', 'cin:read']);
+      const deliveryWhere = territoryWhere(context, ['dashboard:read', 'documents:deliver']);
       const canReadCitizens = context.permissions.has('citizens:read');
       const canReadBirths = context.permissions.has('births:read');
       const canReadCin = context.permissions.has('cin:read');
       const canDeliverDocuments = context.permissions.has('documents:deliver');
       const [citizens, declarations, validatedActs, documentsDelivered, births, cinCases,
         activeBirths, activeCin, lastBirths, lastCin] = await Promise.all([
-        canReadCitizens ? tx.citizen.count({ where: { ...where, active: true } }) : 0,
-        canReadBirths ? tx.birthDeclaration.count({ where }) : 0,
-        canReadBirths ? tx.birthRecord.count({ where: { ...where, status: { in: ['VALIDATED', 'ISSUED'] } } }) : 0,
-        canDeliverDocuments ? tx.documentDelivery.count({ where }) : 0,
-        canReadBirths ? tx.birthRecord.count({ where }) : 0,
-        canReadCin ? tx.cinApplication.count({ where }) : 0,
-        canReadBirths ? tx.birthRecord.count({ where: { ...where, status: { in: ['REGISTERED', 'IN_REVIEW', 'VALIDATED'] } } }) : 0,
-        canReadCin ? tx.cinApplication.count({ where: { ...where, status: { in: ['REGISTERED', 'IN_REVIEW', 'VALIDATED'] } } }) : 0,
+        canReadCitizens ? tx.citizen.count({ where: { ...citizenWhere, active: true } }) : 0,
+        canReadBirths ? tx.birthDeclaration.count({ where: birthWhere }) : 0,
+        canReadBirths ? tx.birthRecord.count({ where: { ...birthWhere, status: { in: ['VALIDATED', 'ISSUED'] } } }) : 0,
+        canDeliverDocuments ? tx.documentDelivery.count({ where: deliveryWhere }) : 0,
+        canReadBirths ? tx.birthRecord.count({ where: birthWhere }) : 0,
+        canReadCin ? tx.cinApplication.count({ where: cinWhere }) : 0,
+        canReadBirths ? tx.birthRecord.count({ where: { ...birthWhere, status: { in: ['REGISTERED', 'IN_REVIEW', 'VALIDATED'] } } }) : 0,
+        canReadCin ? tx.cinApplication.count({ where: { ...cinWhere, status: { in: ['REGISTERED', 'IN_REVIEW', 'VALIDATED'] } } }) : 0,
         canReadBirths ? tx.birthRecord.findMany({
-          where, include: birthInclude, orderBy: { createdAt: 'desc' }, take: 5,
+          where: birthWhere, include: birthInclude, orderBy: { createdAt: 'desc' }, take: 5,
         }) : [],
         canReadCin ? tx.cinApplication.findMany({
-          where, include: { commune: true, centre: true },
+          where: cinWhere, include: { commune: true, centre: true },
           orderBy: { createdAt: 'desc' }, take: 5,
         }) : [],
       ]);
@@ -519,13 +529,14 @@ app.get('/internal/reports', async (req, res, next) => {
         error.status = 422;
         throw error;
       }
-      const where = {
-        ...territoryWhere(context),
-        createdAt: { gte: period.startAt, lt: period.endExclusive },
-      };
+      const periodWhere = { createdAt: { gte: period.startAt, lt: period.endExclusive } };
       const [birthGroups, cinGroups] = await Promise.all([
-        tx.birthRecord.groupBy({ by: ['status'], where, _count: { _all: true } }),
-        tx.cinApplication.groupBy({ by: ['status'], where, _count: { _all: true } }),
+        tx.birthRecord.groupBy({ by: ['status'], where: {
+          ...territoryWhere(context, ['dashboard:read', 'births:read']), ...periodWhere,
+        }, _count: { _all: true } }),
+        tx.cinApplication.groupBy({ by: ['status'], where: {
+          ...territoryWhere(context, ['dashboard:read', 'cin:read']), ...periodWhere,
+        }, _count: { _all: true } }),
       ]);
       return summarizeWorkflowCounts(birthGroups, cinGroups, period);
     });
@@ -808,9 +819,20 @@ app.post('/internal/births/:id/transition', async (req, res, next) => {
         error.status = 409;
         throw error;
       }
-      const updated = await tx.birthRecord.update({
-        where: { id: record.id },
+      const changed = await tx.birthRecord.updateMany({
+        where: {
+          id: record.id, ...territoryWhere(context),
+          status: record.status, updatedAt: record.updatedAt,
+        },
         data: { status: req.body.status },
+      });
+      if (changed.count !== 1) {
+        const error = new Error('Le statut a changé. Rechargez le dossier.');
+        error.status = 409;
+        throw error;
+      }
+      const updated = await tx.birthRecord.findFirst({
+        where: { id: record.id, ...territoryWhere(context) },
         include: birthInclude,
       });
       const declarationStatus = req.body.status === 'ISSUED' ? 'VALIDATED' : req.body.status;
@@ -908,7 +930,7 @@ app.get('/internal/requests', async (req, res, next) => {
       const canReadBirths = context.permissions.has('births:read') && type !== 'cin';
       const canReadCin = context.permissions.has('cin:read') && type !== 'births';
       const birthWhere = {
-        ...territoryWhere(context),
+        ...territoryWhere(context, 'births:read'),
         ...selectedStatus,
         ...(q ? { OR: [
           { lastName: { contains: q, mode: 'insensitive' } },
@@ -917,7 +939,7 @@ app.get('/internal/requests', async (req, res, next) => {
         ] } : {}),
       };
       const cinWhere = {
-        ...territoryWhere(context),
+        ...territoryWhere(context, 'cin:read'),
         ...selectedStatus,
         ...(q ? { OR: [
           { lastName: { contains: q, mode: 'insensitive' } },
@@ -995,7 +1017,10 @@ app.get('/internal/documents/births/:id', async (req, res, next) => {
         throw error;
       }
       const record = await tx.birthRecord.findFirst({
-        where: { id: req.params.id, ...territoryWhere(context) },
+        where: {
+          id: req.params.id,
+          ...territoryWhere(context, ['documents:preview', 'births:read']),
+        },
         include: birthInclude,
       });
       if (!record) {
@@ -1024,7 +1049,10 @@ app.get('/internal/documents/cin/:id', async (req, res, next) => {
         throw error;
       }
       const record = await tx.cinApplication.findFirst({
-        where: { id: req.params.id, ...territoryWhere(context) },
+        where: {
+          id: req.params.id,
+          ...territoryWhere(context, ['documents:preview', 'cin:read']),
+        },
         include: { commune: true, centre: true },
       });
       if (!record) {
@@ -1059,15 +1087,16 @@ app.get('/internal/documents/export', async (req, res, next) => {
         throw error;
       }
 
-      const where = territoryWhere(context);
+      const birthWhere = territoryWhere(context, ['documents:preview', 'births:read']);
+      const cinWhere = territoryWhere(context, ['documents:preview', 'cin:read']);
       const [births, cinCases] = await Promise.all([
         exportType === 'cin' ? [] : tx.birthRecord.findMany({
-          where,
+          where: birthWhere,
           include: birthInclude,
           orderBy: { createdAt: 'asc' },
         }),
         exportType === 'births' ? [] : tx.cinApplication.findMany({
-          where,
+          where: cinWhere,
           include: { commune: true, centre: true },
           orderBy: { createdAt: 'asc' },
         }),
@@ -1110,7 +1139,10 @@ app.put('/internal/cin/:id/evidence', async (req, res, next) => {
     }
     const result = await scoped(req, res, ['cin:create', 'cin:workflow'], async (tx, context) => {
       const record = await tx.cinApplication.findFirst({
-        where: { id: req.params.id, ...territoryWhere(context) },
+        where: {
+          id: req.params.id,
+          ...territoryWhere(context, ['cin:create', 'cin:workflow']),
+        },
       });
       if (!record) {
         const error = new Error('Dossier CIN introuvable.');
@@ -1128,7 +1160,12 @@ app.put('/internal/cin/:id/evidence', async (req, res, next) => {
         photosCount: body.photos_count,
       };
       const updatedCount = await tx.cinApplication.updateMany({
-        where: { id: record.id, ...territoryWhere(context), status: record.status, updatedAt: record.updatedAt },
+        where: {
+          id: record.id,
+          ...territoryWhere(context, ['cin:create', 'cin:workflow']),
+          status: record.status,
+          updatedAt: record.updatedAt,
+        },
         data,
       });
       if (updatedCount.count !== 1) {
@@ -1146,7 +1183,10 @@ app.put('/internal/cin/:id/evidence', async (req, res, next) => {
         },
       } });
       return cinJson(await tx.cinApplication.findFirst({
-        where: { id: record.id, ...territoryWhere(context) },
+        where: {
+          id: record.id,
+          ...territoryWhere(context, ['cin:create', 'cin:workflow']),
+        },
         include: { commune: true, centre: true },
       }));
     });

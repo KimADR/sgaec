@@ -65,12 +65,26 @@ async def forward(method: str, path: str, *, json: dict | None = None,
         )
     except httpx.RequestError as exc:
         raise HTTPException(status_code=503, detail="Service de données indisponible") from exc
+    try:
+        payload = response.json()
+    except (ValueError, UnicodeError) as exc:
+        raise HTTPException(
+            status_code=502,
+            detail="Réponse invalide du service de données",
+        ) from exc
+    if response.status_code >= 400 and not isinstance(payload, dict):
+        raise HTTPException(
+            status_code=502,
+            detail="Réponse invalide du service de données",
+        )
     if response.status_code >= 400:
-        detail = response.json().get("detail", "Erreur du service de données")
         if response.status_code >= 500:
             raise HTTPException(status_code=502, detail="Erreur interne du service de données")
+        detail = payload.get("detail", "Erreur du service de données")
+        if not isinstance(detail, str):
+            detail = "Erreur du service de données"
         raise HTTPException(status_code=response.status_code, detail=detail)
-    return response.json()
+    return payload
 
 
 @app.middleware("http")
@@ -148,7 +162,26 @@ async def demo_security_headers(request, call_next):
 
 @app.get("/health")
 async def health():
+    """Liveness indépendante des services aval."""
     return {"ok": True, "service": "sgaec-api", "mode": "demo"}
+
+
+@app.get("/ready")
+async def ready(request: Request):
+    """Readiness : API et service de données disponibles."""
+    try:
+        result = await request.app.state.data.get("/health", timeout=3.0)
+    except httpx.RequestError:
+        return JSONResponse(
+            {"ok": False, "detail": "Service de données indisponible"},
+            status_code=503,
+        )
+    if result.status_code != 200:
+        return JSONResponse(
+            {"ok": False, "detail": "Service de données non prêt"},
+            status_code=503,
+        )
+    return {"ok": True, "service": "sgaec-api", "data": "ready", "mode": "demo"}
 
 
 @app.post("/api/v1/auth/login")
@@ -352,10 +385,45 @@ async def get_birth(record_id: UUID, request: Request):
     return await forward("GET", f"/births/{record_id}", tenant=request)
 
 
+def checked_birth_document(record: Any) -> dict:
+    """Refuse les données aval incomplètes ou invalides avant de créer le PDF."""
+    required = (
+        "record_number",
+        "last_name",
+        "first_names",
+        "birth_date",
+        "sex",
+        "place_of_birth",
+        "nationality",
+        "district",
+    )
+    if not isinstance(record, dict) or any(
+        not isinstance(record.get(field), str) or not record[field].strip()
+        for field in required
+    ):
+        raise HTTPException(
+            status_code=502,
+            detail="Données de naissance incomplètes dans le service de données",
+        )
+    if record["sex"] not in {"M", "F"}:
+        raise HTTPException(
+            status_code=502,
+            detail="Sexe invalide pour le document de démonstration",
+        )
+    try:
+        date.fromisoformat(record["birth_date"][:10])
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail="Date de naissance invalide dans le service de données",
+        ) from exc
+    return record
+
+
 @app.get("/api/v1/births/{record_id}/specimen.pdf")
 async def birth_specimen(record_id: UUID, request: Request):
     record = await forward("GET", f"/documents/births/{record_id}", tenant=request)
-    pdf = render_birth_specimen(record)
+    pdf = render_birth_specimen(checked_birth_document(record))
     return Response(content=pdf, media_type="application/pdf",
                     headers={"Content-Disposition": f'inline; filename="naissance-specimen-{str(record_id)[:8]}.pdf"',
                              "Cache-Control": "no-store"})

@@ -58,7 +58,7 @@ export default function BirthForm() {
       <span className={`grid size-7 shrink-0 place-items-center rounded-full border text-xs ${index === step ? 'border-white/30 bg-white/10' : 'border-current'}`}>{index < step ? <Check size={14}/> : index + 1}</span><span>{s.label}</span>
     </li>)}</ol>
     <div>
-      {step === 0 && <section className="overflow-hidden rounded-xl border border-line"><div className="flex items-center gap-2 border-b border-line bg-slate-50 px-4 py-3 text-sm font-bold text-navy-2"><Baby size={19}/> Informations de l'enfant</div>
+      {step === 0 && <section className="overflow-hidden rounded-lg border border-line"><div className="flex items-center gap-2 border-b border-line bg-slate-50 px-4 py-3 text-sm font-bold text-navy-2"><Baby size={19}/> Informations de l'enfant</div>
         <div className="grid grid-cols-1 gap-5 p-4 sm:grid-cols-2 sm:p-5">
           <label className={fieldClass}><span>Nom <b className="text-red-600">*</b></span><input className={inputClass} value={form.last_name} maxLength={120} onChange={e => update('last_name', e.target.value.toUpperCase())} placeholder="Nom de famille"/></label>
           <div className={fieldClass}><span>Sexe <b className="text-red-600">*</b></span><div className="flex min-h-11 flex-wrap items-center gap-x-6 gap-y-3"><label className="flex items-center gap-2 font-normal"><input type="radio" checked={form.sex === 'M'} onChange={() => update('sex', 'M')}/> Masculin</label><label className="flex items-center gap-2 font-normal"><input type="radio" checked={form.sex === 'F'} onChange={() => update('sex', 'F')}/> Féminin</label></div></div>
@@ -70,7 +70,7 @@ export default function BirthForm() {
           <label className={fieldClass}><span>Commune de rattachement</span><input className={`${inputClass} bg-slate-50`} value={form.municipality} readOnly aria-readonly="true" title="La commune est définie par le contexte de connexion"/><small className="font-normal text-muted">Définie par la commune active de votre session.</small></label>
         </div>
       </section>}
-      {step === 1 && <section className="overflow-hidden rounded-xl border border-line"><div className="flex items-center gap-2 border-b border-line bg-slate-50 px-4 py-3 text-sm font-bold text-navy-2"><UsersRound size={19}/> Informations des parents et du déclarant</div>
+      {step === 1 && <section className="overflow-hidden rounded-lg border border-line"><div className="flex items-center gap-2 border-b border-line bg-slate-50 px-4 py-3 text-sm font-bold text-navy-2"><UsersRound size={19}/> Informations des parents et du déclarant</div>
         <div className="grid grid-cols-1 gap-5 p-4 sm:grid-cols-2 sm:p-5">
           <label className={fieldClass}>Nom complet du père<input className={inputClass} value={form.father_name} onChange={e => update('father_name', e.target.value)} maxLength={160} placeholder="Nom et prénom(s)"/></label>
           <label className={fieldClass}>Nom complet de la mère<input className={inputClass} value={form.mother_name} onChange={e => update('mother_name', e.target.value)} maxLength={160} placeholder="Nom et prénom(s)"/></label>
@@ -78,7 +78,7 @@ export default function BirthForm() {
           <label className={`${fieldClass} sm:col-span-2`}>Nom du déclarant<input className={inputClass} value={form.declarant_name} onChange={e => update('declarant_name', e.target.value)} maxLength={160} placeholder="Personne effectuant la déclaration"/></label>
         </div><p className="mx-4 mb-4 rounded-lg bg-amber-50 p-3 text-sm leading-5 text-amber-900 sm:mx-5">Les règles officielles relatives à la déclaration et aux pièces justificatives devront être validées auprès de la commune.</p>
       </section>}
-      {step === 2 && <section className="overflow-hidden rounded-xl border border-line"><div className="flex items-center gap-2 border-b border-line bg-slate-50 px-4 py-3 text-sm font-bold text-navy-2"><FileCheck2 size={19}/> Vérification des informations</div>
+      {step === 2 && <section className="overflow-hidden rounded-lg border border-line"><div className="flex items-center gap-2 border-b border-line bg-slate-50 px-4 py-3 text-sm font-bold text-navy-2"><FileCheck2 size={19}/> Vérification des informations</div>
         <dl className="grid grid-cols-1 gap-x-6 p-4 sm:grid-cols-2 sm:p-5">{[
           ['Nom et prénom(s)', `${form.last_name} ${form.first_names}`],
           ['Sexe', form.sex === 'M' ? 'Masculin' : 'Féminin'],
@@ -93,7 +93,7 @@ export default function BirthForm() {
           <span>J'ai vérifié les informations saisies. Ce dossier est créé uniquement à des fins de démonstration.</span></label>
       </section>}
     </div>
-    {error && <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800" role="alert">{error}</div>}
+    {error && <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800" role="alert" aria-live="polite">{error}</div>}
     <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4"><div>{step === 0 ? <Link href="/naissances" className={`${buttonClass} border border-line bg-white text-navy-2 hover:bg-slate-50`}>Annuler</Link> : <button className={`${buttonClass} border border-line bg-white text-navy-2 hover:bg-slate-50`} type="button" onClick={() => { setStep(v => v - 1); setError(''); }}><ArrowLeft size={16}/> Précédent</button>}</div>
       {step < 2 ? <button type="button" className={`${buttonClass} bg-blue text-white hover:bg-blue-dark`} onClick={next}>Suivant <ArrowRight size={16}/></button> :
       <button className={`${buttonClass} bg-blue text-white hover:bg-blue-dark`} type="submit" disabled={saving}>{saving ? 'Enregistrement…' : 'Enregistrer le dossier'} <Check size={16}/></button>}</div>

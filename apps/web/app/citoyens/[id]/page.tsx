@@ -11,6 +11,7 @@ import { Status } from '@/components/Status';
 import { apiDelete, apiGet, apiPut } from '@/lib/api';
 import { dateFr } from '@/lib/format';
 import type { Citizen, CitizenInput } from '@/lib/types';
+import PageHeader from '@/components/PageHeader';
 
 export default function CitizenDetailPage() {
   const canManage = useCan('citizens:manage');
@@ -54,21 +55,17 @@ export default function CitizenDetailPage() {
   if (error && !citizen) return <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800" role="alert">{error}</div>;
   if (!citizen) return <div className="rounded-2xl border border-line bg-white p-8 text-center text-sm text-muted" role="status">Chargement de la fiche citoyen…</div>;
 
-  const buttonClass = 'inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-line bg-white px-3 text-sm font-semibold text-navy-2 transition hover:bg-slate-50 disabled:opacity-50';
-  return <div className="flex flex-col gap-5">
-    <p className="m-0 text-xs font-medium text-muted"><Link className="hover:text-blue" href="/citoyens">Citoyens</Link><span className="px-1">›</span>{citizen.last_name} {citizen.first_names}</p>
-    <header className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
-      <div><h2 className="m-0 text-2xl font-bold text-ink">Fiche citoyen</h2><p className="mt-2 text-sm text-muted">{citizen.last_name} {citizen.first_names}</p></div>
-      <div className="flex flex-wrap gap-2">
-        <Link className={buttonClass} href="/citoyens"><ArrowLeft size={16}/> Répertoire</Link>
-        {canManage && citizen.active && <button className={buttonClass} type="button" onClick={() => { setEditing(value => !value); setError(''); setNotice(''); }}>
+  return <div className="flex flex-col gap-6">
+    <PageHeader eyebrow="Répertoire communal · Citoyens" title={`${citizen.last_name} ${citizen.first_names}`} description="Fiche citoyen et actes associés."
+      actions={<>
+        <Link className="btn-secondary" href="/citoyens"><ArrowLeft size={16}/> Répertoire</Link>
+        {canManage && citizen.active && <button className="btn-secondary" type="button" onClick={() => { setEditing(value => !value); setError(''); setNotice(''); }}>
           <Pencil size={16}/>{editing ? 'Annuler la modification' : 'Modifier'}
         </button>}
-        {canManage && citizen.active && <button className={buttonClass} type="button" onClick={archiveCitizen} disabled={archiving}>
+        {canManage && citizen.active && <button className="btn-secondary" type="button" onClick={archiveCitizen} disabled={archiving}>
           <Archive size={16}/>{archiving ? 'Archivage…' : 'Archiver'}
         </button>}
-      </div>
-    </header>
+      </>}/>
     {error && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800" role="alert">{error}</div>}
     {notice && <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800" role="status">{notice}</div>}
 

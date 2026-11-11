@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Download, Printer } from 'lucide-react';
+import { Download, ExternalLink, Printer } from 'lucide-react';
 import { apiGetBlob } from '@/lib/api';
 import { useCan } from '@/components/AccessContext';
 
@@ -55,7 +55,15 @@ export default function PdfDocumentViewer({ path, filename }: PdfDocumentViewerP
   }
 
   function printPdf() {
-    frameRef.current?.contentWindow?.print();
+    if (!url) return;
+    try {
+      const frameWindow = frameRef.current?.contentWindow;
+      if (!frameWindow) throw new Error('Visionneuse non disponible');
+      frameWindow.focus();
+      frameWindow.print();
+    } catch {
+      window.open(url, '_blank', 'noopener,noreferrer');
+    }
   }
 
   if (!authorized) return <section className="rounded-2xl border border-line bg-white p-5 text-sm text-muted">Prévisualisation PDF non autorisée pour ce profil.</section>;
@@ -67,12 +75,22 @@ export default function PdfDocumentViewer({ path, filename }: PdfDocumentViewerP
           <h3 className="m-0 text-base font-bold text-ink">Document PDF généré par le serveur</h3>
           <p className="mb-0 mt-1 text-xs text-muted">Aperçu fidèle du fichier proposé au téléchargement.</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          {url && (
+            <a
+              href={url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-line bg-white px-3 text-sm font-semibold text-navy-2 hover:bg-slate-50"
+            >
+              <ExternalLink size={16} /> Ouvrir le PDF
+            </a>
+          )}
           <button
             className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-line bg-white px-3 text-sm font-semibold text-navy-2 hover:bg-slate-50 disabled:opacity-50"
             type="button"
             onClick={printPdf}
-            disabled={!url || loading}
+            disabled={!url}
           >
             <Printer size={16} /> Imprimer
           </button>
@@ -80,14 +98,14 @@ export default function PdfDocumentViewer({ path, filename }: PdfDocumentViewerP
             className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-blue px-3 text-sm font-semibold text-white hover:bg-blue-dark disabled:opacity-50"
             type="button"
             onClick={downloadPdf}
-            disabled={!url || loading}
+            disabled={!url}
           >
             <Download size={16} /> Télécharger
           </button>
         </div>
       </div>
       {loading && <div className="p-8 text-center text-sm text-muted" role="status">Chargement du PDF…</div>}
-      {error && <div className="m-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800" role="alert">{error}</div>}
+      {error && <div className="m-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800" role="alert">{error}. Vous pouvez revenir à la liste, puis rouvrir le document.</div>}
       {url && (
         <iframe
           ref={frameRef}

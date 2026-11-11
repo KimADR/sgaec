@@ -33,7 +33,7 @@ export default function CinForm() {
     catch (e) { setError(e instanceof Error ? e.message : 'Erreur inconnue'); setSaving(false); }
   }
   return <form onSubmit={submit} noValidate className="p-4 sm:p-6">
-    <div className="space-y-5"><section className="overflow-hidden rounded-xl border border-line"><div className="flex items-center gap-2 border-b border-line bg-slate-50 px-4 py-3 text-sm font-bold text-navy-2"><IdCard size={19}/> Informations du demandeur</div>
+    <div className="space-y-5">    <section className="overflow-hidden rounded-lg border border-line"><div className="flex items-center gap-2 border-b border-line bg-slate-50 px-4 py-3 text-sm font-bold text-navy-2"><IdCard size={19}/> Informations du demandeur</div>
       <div className="grid grid-cols-1 gap-5 p-4 sm:grid-cols-2 sm:p-5">
         <label className={fieldClass}><span>Nom <b className="text-red-600">*</b></span><input className={inputClass} value={form.last_name} onChange={e => update('last_name', e.target.value.toUpperCase())} maxLength={120}/></label>
         <label className={fieldClass}><span>Prénom(s) <b className="text-red-600">*</b></span><input className={inputClass} value={form.first_names} onChange={e => update('first_names', e.target.value)} maxLength={160}/></label>
@@ -43,15 +43,15 @@ export default function CinForm() {
         <label className={fieldClass}><span>Arrondissement / district <b className="text-red-600">*</b></span><input className={inputClass} value={form.district} onChange={e => update('district', e.target.value)} maxLength={140} placeholder="Arrondissement ou district"/></label>
         <label className={fieldClass}>Profession<input className={inputClass} value={form.profession} onChange={e => update('profession', e.target.value)} maxLength={100}/></label>
       </div></section>
-      <section className="overflow-hidden rounded-xl border border-line"><div className="flex items-center gap-2 border-b border-line bg-slate-50 px-4 py-3 text-sm font-bold text-navy-2"><FolderPlus size={19}/> Parents et pièces fournies</div>
+      <section className="overflow-hidden rounded-lg border border-line"><div className="flex items-center gap-2 border-b border-line bg-slate-50 px-4 py-3 text-sm font-bold text-navy-2"><FolderPlus size={19}/> Parents et justificatifs déclarés</div>
         <div className="grid grid-cols-1 gap-5 p-4 sm:grid-cols-2 sm:p-5"><label className={fieldClass}>Nom du père<input className={inputClass} value={form.father_name} maxLength={160} onChange={e => update('father_name', e.target.value)}/></label>
           <label className={fieldClass}>Nom de la mère<input className={inputClass} value={form.mother_name} maxLength={160} onChange={e => update('mother_name', e.target.value)}/></label>
-          <div className={`${fieldClass} sm:col-span-2`}><span>Pièces déclarées</span><div className="flex min-h-11 flex-wrap items-center gap-x-6 gap-y-3"><label className="flex items-center gap-2 font-normal"><input type="checkbox" checked={form.has_birth_certificate} onChange={e => update('has_birth_certificate', e.target.checked)}/> Copie d'acte de naissance</label>
+          <div className={`${fieldClass} sm:col-span-2`}><span>Pièces déclarées</span><p className="-mt-1 text-xs font-normal text-muted">Ces cases consignent une déclaration; aucun justificatif n’est téléversé ici.</p><div className="flex min-h-11 flex-wrap items-center gap-x-6 gap-y-3"><label className="flex items-center gap-2 font-normal"><input type="checkbox" checked={form.has_birth_certificate} onChange={e => update('has_birth_certificate', e.target.checked)}/> Copie d'acte de naissance</label>
             <label><input type="checkbox" checked={form.has_residence_proof} onChange={e => update('has_residence_proof', e.target.checked)}/> Justificatif de domicile</label></div></div>
           <label className={fieldClass}>Nombre de photos d'identité<input className={inputClass} type="number" min={0} max={8} value={form.photos_count} onChange={e => update('photos_count', Number(e.target.value))}/></label>
         </div><p className="mx-4 mb-4 rounded-lg bg-amber-50 p-3 text-sm leading-5 text-amber-900 sm:mx-5">La liste des justificatifs est indicative. Aucun fichier réel n'est téléversé dans le prototype.</p>
       </section></div>
-    {error && <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800" role="alert">{error}</div>}
+    {error && <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800" role="alert" aria-live="polite">{error}</div>}
     <div className="mt-5 flex flex-wrap justify-between gap-3 border-t border-line pt-4"><Link className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-line bg-white px-4 text-sm font-semibold text-navy-2 hover:bg-slate-50" href="/cin"><ArrowLeft size={16}/> Annuler</Link>
       <button className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-blue px-4 text-sm font-semibold text-white hover:bg-blue-dark disabled:cursor-not-allowed disabled:opacity-50" type="submit" disabled={saving}>{saving ? 'Enregistrement…' : 'Enregistrer le dossier'} <Check size={16}/></button></div>
   </form>;

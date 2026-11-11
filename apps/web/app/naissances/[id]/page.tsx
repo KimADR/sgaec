@@ -10,6 +10,7 @@ import { Status } from '@/components/Status';
 import { apiGet } from '@/lib/api';
 import { dateFr, fullName } from '@/lib/format';
 import type { BirthRecord } from '@/lib/types';
+import PageHeader from '@/components/PageHeader';
 export default function BirthDetail() {
   const canPreview = useCan('documents:preview');
   const params = useParams<{id: string}>();
@@ -18,8 +19,9 @@ export default function BirthDetail() {
   useEffect(() => { if (params.id) apiGet<BirthRecord>(`/births/${params.id}`).then(setR).catch((e: Error) => setError(e.message)); }, [params.id]);
   if (error) return <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800" role="alert">{error}</div>;
   if (!r) return <div className="rounded-2xl border border-line bg-white p-8 text-center text-sm text-muted" role="status">Chargement de l'acte…</div>;
-  return <div className="flex flex-col gap-5"><p className="m-0 text-xs font-medium text-muted">État civil <span className="px-1">›</span> <Link className="hover:text-blue" href="/naissances">Naissances</Link> <span className="px-1">›</span> {r.record_number}</p>
-    <header className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center"><div><h2 className="m-0 text-2xl font-bold text-ink">Acte de naissance</h2><p className="mt-2 text-sm text-muted">{r.record_number} — {fullName(r)}</p></div><Link className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-line bg-white px-3 text-sm font-semibold text-navy-2 hover:bg-slate-50" href="/naissances"><ArrowLeft size={16}/> Retour</Link></header>
+  return <div className="flex flex-col gap-6">
+    <PageHeader eyebrow="État civil · Naissances" title="Acte de naissance" description={`${r.record_number} · ${fullName(r)}`}
+      actions={<Link className="btn-secondary" href="/naissances"><ArrowLeft size={16}/> Retour au registre</Link>}/>
     <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]"><div className="flex min-w-0 flex-col gap-5"><section className="overflow-hidden rounded-2xl border border-line bg-white shadow-sm"><div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-4"><h3 className="m-0 flex items-center gap-2 text-base font-bold text-ink"><FileText size={18} className="text-navy"/> Informations enregistrées</h3><Status status={r.status}/></div>
       <dl className="grid grid-cols-1 gap-x-6 px-5 py-2 sm:grid-cols-2">{[
         ['Nom complet', fullName(r)], ['Sexe', r.sex === 'M' ? 'Masculin' : 'Féminin'],
